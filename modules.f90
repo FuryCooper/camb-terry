@@ -39,7 +39,7 @@
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
-    logical, parameter :: DebugMsgs=.true. !Set to true to view progress and timing
+    logical, parameter :: DebugMsgs=.false. !Set to true to view progress and timing
 
     logical, parameter :: DebugEvolution = .false. !Set to true to do all the evolution for all k
 
@@ -421,7 +421,7 @@
   !CP%xi_nu(2) = CP%xi_nu(3)
   !print *, 'L2/L3', r23
   !print *, 'L1/L3', -(s12sq*r23+t13**2)/c12**2
-	print *, 'test xi nu', CP%xi_nu
+	!print *, 'test xi nu', CP%xi_nu
         call init_massive_nu(CP%omegan /=0, CP%xi_nu) !terry
         call init_background
         if (global_error_flag==0) then
@@ -1472,8 +1472,8 @@
     real(dl) dq,dlfdlq, q, am, rhonu,pnu
     real(dl) spline_data(nrhopn),conv(5)
     real(dl), intent(in) :: xi_camb(4) !Kenny: edited terry
-    real t1,t2
-    real,save::totaltime(4)=0
+    !real t1,t2
+    !real,save::totaltime(4)=0
 
     !  nu_masses=m_nu(i)*c**2/(k_B*T_nu0).
     !  Get number density n of neutrinos from
@@ -1569,27 +1569,27 @@
     do i=1,nrhopn
         am=am_min*exp((i-1)*dlnam)
 	!call nuRhoPres(am,rhonu,pnu) !Kenny: edited
-	call cpu_time(t1)
+	!call cpu_time(t1)
         call nuRhoPres(am,rhonu,pnu,xi_camb(1)) !Kenny: edited terry
-	call cpu_time(t2)
-	totaltime(1) = totaltime(1) + t2 - t1
+	!call cpu_time(t2)
+	!totaltime(1) = totaltime(1) + t2 - t1
         r1(i,1)=log(rhonu) !terry
         p1(i,1)=log(pnu) !terry
         call nuRhoPres(am,rhonu,pnu,xi_camb(2)) !Kenny: edited terry
-	call cpu_time(t1)
-	totaltime(2) = totaltime(2) + t2 - t1
+	!call cpu_time(t1)
+	!totaltime(2) = totaltime(2) + t2 - t1
         r1(i,2)=log(rhonu) !terry
         p1(i,2)=log(pnu) !terry
         call nuRhoPres(am,rhonu,pnu,xi_camb(3)) !Kenny: edited terry
-	call cpu_time(t2)
-	totaltime(3) = totaltime(3) + t2 - t1
+	!call cpu_time(t2)
+	!totaltime(3) = totaltime(3) + t2 - t1
         r1(i,3)=log(rhonu) !terry
         p1(i,3)=log(pnu) !terry
         call nuRhoPres(am,rhonu,pnu,xi_camb(4)) !Kenny: edited terry
         r1(i,4)=log(rhonu) !terry
         p1(i,4)=log(pnu) !terry
-	call cpu_time(t1)
-	totaltime(4) = totaltime(4) + t2 - t1
+	!call cpu_time(t1)
+	!totaltime(4) = totaltime(4) + t2 - t1
     end do
 
     !$OMP END PARALLEL DO
