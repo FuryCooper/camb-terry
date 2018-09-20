@@ -1491,7 +1491,7 @@
         nu_masses(i)=const/(1.5d0*zeta3)*grhom/grhor*CP%omegan*CP%Nu_mass_fractions(i) &
         /CP%Nu_mass_degeneracies(i)
     end do
-    !print *, 'test nu mass',nu_masses
+    !print *, 'test nu mass',nu_masses(1:CP%Nu_mass_eigenstates)
 !    if (allocated(r1)) return !Kenny: edited
      if (allocated(r1) .or. allocated(p1) .or. allocated(dr1) .or. allocated(dp1) .or. allocated(ddr1)) then !Kenny: edited terry
        deallocate(r1)                                                                                        !Kenny: edited
