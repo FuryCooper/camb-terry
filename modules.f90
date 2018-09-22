@@ -1604,8 +1604,8 @@
     real(dl) dq,dlfdlq, q, am, rhonu,pnu
     real(dl) spline_data(nrhopn),conv(5)
     real(dl), intent(in) :: xi_camb(4) !Kenny: edited terry
-    !real t1,t2
-    !real,save::totaltime(4)=0
+    real t1,t2
+    real,save::totaltime(4)=0
 
     !  nu_masses=m_nu(i)*c**2/(k_B*T_nu0).
     !  Get number density n of neutrinos from
