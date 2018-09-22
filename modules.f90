@@ -426,7 +426,7 @@
   !CP%xi_nu(2) = CP%xi_nu(3)
   !print *, 'L2/L3', r23
   !print *, 'L1/L3', -(s12sq*r23+t13**2)/c12**2
-	print *, 'test xi nu', CP%xi_nu
+	!print *, 'test xi nu', CP%xi_nu
         call init_massive_nu(CP%omegan /=0, CP%xi_nu) !terry
         call init_background
         if (global_error_flag==0) then
@@ -1604,8 +1604,8 @@
     real(dl) dq,dlfdlq, q, am, rhonu,pnu
     real(dl) spline_data(nrhopn),conv(5)
     real(dl), intent(in) :: xi_camb(4) !Kenny: edited terry
-    real t1,t2
-    real,save::totaltime(4)=0
+    !real t1,t2
+    !real,save::totaltime(4)=0
 
     !  nu_masses=m_nu(i)*c**2/(k_B*T_nu0).
     !  Get number density n of neutrinos from
