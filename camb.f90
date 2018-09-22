@@ -400,9 +400,9 @@
                 P%Num_Nu_Massless = 0
                 neff_massive_standard=nnu
             end if
-            P%Nu_mass_numbers(P%Nu_mass_eigenstates) = num_massive_neutrinos
-            P%Nu_mass_degeneracies(P%Nu_mass_eigenstates) = neff_massive_standard
-            P%Nu_mass_fractions(P%Nu_mass_eigenstates) = normal_frac
+            P%Nu_mass_numbers(1:P%Nu_mass_eigenstates) = 1
+            P%Nu_mass_degeneracies(1:P%Nu_mass_eigenstates) = neff_massive_standard / 3
+            P%Nu_mass_fractions(1:P%Nu_mass_eigenstates) = normal_frac / 3
         else
             !Use normal or inverted hierarchy, approximated as two eigenstates in physical regime, 1 at minimum an below
             mnu = (omnuh2 - omnuh2_sterile)*neutrino_mass_fac / (default_nnu / 3) ** 0.75_dl
@@ -413,8 +413,10 @@
                     P%Num_Nu_Massive = 3
                 else
                     !One eigenstate
-                    P%Num_Nu_Massive = 1
-		    print*, "incorrect mass limit? error in CAMB_SetNeutrinoHierarchy 1", mnu, mnu_min_normal + 1e-4_dl
+                    !one massve, 2 massless?
+                    m1 = 0
+                    P%Num_Nu_Massive = 3
+                    !print*, "incorrect mass limit? error in CAMB_SetNeutrinoHierarchy 1", mnu, mnu_min_normal + 1e-4_dl
                 end if
             else if (neutrino_hierarchy == neutrino_hierarchy_inverted) then
                 if (mnu > sqrt(delta_mnu31)+sqrt(delta_mnu31+delta_mnu21) + 1e-4_dl ) then
