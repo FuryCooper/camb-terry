@@ -1487,6 +1487,7 @@
 	    xi_fac(1,i) = (1._dl+30._dl*(CP%xi_nu(i)**2._dl)/7._dl/(const_pi**2._dl)+15._dl*(CP%xi_nu(i)**4._dl)/7._dl/(const_pi**4._dl)) !terry
 	    xi_fac(2,i) = (1._dl + 3._dl / const_pi / const_pi * CP%xi_nu(i)**2) !terry
     enddo
+    nu_masses = 0
     do i=1, CP%Nu_mass_eigenstates
         nu_masses(i)=const/(1.5d0*zeta3)*grhom/grhor*CP%omegan*CP%Nu_mass_fractions(i) &
         /CP%Nu_mass_degeneracies(i)
