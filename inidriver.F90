@@ -28,6 +28,7 @@
     character(LEN=Ini_max_string_len) TransferFileNames(max_transfer_redshifts), &
         MatterPowerFileNames(max_transfer_redshifts), outroot, version_check
     real(dl) output_factor, nmassive
+    real(dl) :: fractional_number, actual_massless, neff_i
 
 #ifdef WRITE_FITS
     character(LEN=Ini_max_string_len) FITSfilename
@@ -107,7 +108,9 @@
     if (Ini_Read_Logical('use_physical',.false.)) then
         P%omegab = Ini_Read_Double('ombh2')/(P%H0/100)**2
         P%omegac = Ini_Read_Double('omch2')/(P%H0/100)**2
-        P%omegan = Ini_Read_Double('omnuh2')/(P%H0/100)**2
+        P%omegan_for_mass = Ini_Read_Double('omnuh2')/(P%H0/100)**2
+        !todo get real omegan and omegav
+        P%omegan = p%omegan_for_mass
         P%omegav = 1- Ini_Read_Double('omk') - P%omegab-P%omegac - P%omegan
     else
         P%omegab = Ini_Read_Double('omega_baryon')
@@ -153,6 +156,17 @@
             read(numstr,*) P%Nu_mass_fractions(1:P%Nu_mass_eigenstates)
         end if
     end if
+    call get_xi_from_xi3(P%xi_nu(1:3))
+    if (P%share_delta_neff) then
+      !default case of equal heating of all neutrinos
+      fractional_number = P%Num_Nu_massless + P%Num_Nu_massive
+      actual_massless = int(P%Num_Nu_massless + 1e-6_dl)
+      neff_i = fractional_number/(actual_massless + P%Num_Nu_massive)
+      P%Nu_mass_degeneracies(1:P%Nu_mass_eigenstates) = P%Nu_mass_numbers(1:P%Nu_mass_eigenstates)*neff_i
+    end if
+    P%omegan = GetOmegaNu(P, P%H0, P%omegan_for_mass, P%xi_nu(1:3))
+    P%omegav = 1- Ini_Read_Double('omk') - P%omegab-P%omegac - P%omegan
+    print *, 'test omegav omegak', P%omegav, P%omegak, P%H0
 
     !JD 08/13 begin changes for nonlinear lensing of CMB + LSS compatibility
     !P%Transfer%redshifts -> P%Transfer%PK_redshifts and P%Transfer%num_redshifts -> P%Transfer%PK_num_redshifts

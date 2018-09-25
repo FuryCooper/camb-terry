@@ -118,7 +118,8 @@
     end if
 
     if (isnan(grhoa2) .or. grhoa2<0.d0) then
-      print *, 'dtauda NaN, grhoa2', grhoa2
+      print *, 'dtauda NaN, grhoa2', grhoa2, grhob, grhoc, grhog, grhok, grhov
+      print *, 'neutrino params', grhormass, nu_masses, rhonu
       stop
     endif
 

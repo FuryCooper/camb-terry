@@ -115,7 +115,7 @@
         integer :: num_xi=4 !terry
         real(dl) :: xi_nu(4) !Kenny: edited terry
 
-        real(dl)  :: omegab, omegac, omegav, omegan
+        real(dl)  :: omegab, omegac, omegav, omegan, omegan_for_mass
         !Omega baryon, CDM, Lambda and massive neutrino
         real(dl)  :: H0,TCMB,yhe,Num_Nu_massless
         integer   :: Num_Nu_massive !sum of Nu_mass_numbers below
@@ -396,17 +396,7 @@
     fHe = CP%YHe/(mass_ratio_He_H*(1.d0-CP%YHe))  !n_He_tot / n_H_tot
 
     if (.not.call_again) then
-	!terry: calculate CP%xi_nu(1) CP%xi_nu(2) from CP%xi_nu(3)
-  !for delta CP=0
-	CP%xi_nu(2) = r23 * CP%xi_nu(3) * (CP%xi_nu(3)**2 + pi**2)/pi**2
-	do i = 1, 10
-		CP%xi_nu(2) = r23 * CP%xi_nu(3) * (CP%xi_nu(3)**2 + pi**2)/(CP%xi_nu(2)**2 + pi**2)
-	enddo
-	CP%xi_nu(1) = -(s12sq * CP%xi_nu(2) * (CP%xi_nu(2)**2 + pi**2) + t13**2 * CP%xi_nu(3) * (CP%xi_nu(3)**2 + pi**2))/c12**2/pi**2
-	do i = 1, 10
-		CP%xi_nu(1) = -(s12sq * CP%xi_nu(2) * (CP%xi_nu(2)**2 + pi**2) + t13**2 * CP%xi_nu(3) &
-			* (CP%xi_nu(3)**2 + pi**2))/c12**2/(CP%xi_nu(1)**2 + pi**2)
-	enddo
+      call get_xi_from_xi3(CP%xi_nu(1:3))
   !delta CP=-pi/2 or pi/2
   !L13=-0.797901d0
   !L23=1.75312d0
@@ -427,7 +417,7 @@
   !print *, 'L2/L3', r23
   !print *, 'L1/L3', -(s12sq*r23+t13**2)/c12**2
 	!print *, 'test xi nu', CP%xi_nu
-        call init_massive_nu(CP%omegan /=0, CP%xi_nu) !terry
+        call init_massive_nu(CP%omegan_for_mass /=0, CP%xi_nu) !terry
         call init_background
         if (global_error_flag==0) then
             CP%tau0=TimeOfz(0._dl)
@@ -498,6 +488,22 @@
 
     end function GetTestTime
 
+    subroutine get_xi_from_xi3(xi_nu)
+      use constants
+      real(dl) :: xi_nu(3)
+      integer :: i
+      !terry: calculate CP%xi_nu(1) CP%xi_nu(2) from CP%xi_nu(3)
+      !for delta CP=0
+      xi_nu(2) = r23 * xi_nu(3) * (xi_nu(3)**2 + pi**2)/pi**2
+      do i = 1, 10
+        xi_nu(2) = r23 * xi_nu(3) * (xi_nu(3)**2 + pi**2)/(xi_nu(2)**2 + pi**2)
+      enddo
+      xi_nu(1) = -(s12sq * xi_nu(2) * (xi_nu(2)**2 + pi**2) + t13**2 * xi_nu(3) * (xi_nu(3)**2 + pi**2))/c12**2/pi**2
+      do i = 1, 10
+        xi_nu(1) = -(s12sq * xi_nu(2) * (xi_nu(2)**2 + pi**2) + t13**2 * xi_nu(3) &
+          * (xi_nu(3)**2 + pi**2))/c12**2/(xi_nu(1)**2 + pi**2)
+      enddo
+    end subroutine
 
     function rofChi(Chi) !sinh(chi) for open, sin(chi) for closed.
     real(dl) Chi,rofChi
@@ -1621,9 +1627,11 @@
     enddo
     nu_masses = 0
     do i=1, CP%Nu_mass_eigenstates
-        nu_masses(i)=const/(1.5d0*zeta3)*grhom/grhor*CP%omegan*CP%Nu_mass_fractions(i) &
+        nu_masses(i)=const/(1.5d0*zeta3)*grhom/grhor*CP%omegan_for_mass*CP%Nu_mass_fractions(i) &
         /CP%Nu_mass_degeneracies(i)
     end do
+    CP%omegan = GetOmegaNu(CP, CP%H0, CP%omegan_for_mass, xi_camb(1:3))
+    print *, 'test module', CP%omegan, CP%omegan_for_mass
     !print *, 'test nu mass',nu_masses(1:CP%Nu_mass_eigenstates)
 !    if (allocated(r1)) return !Kenny: edited
      if (allocated(r1) .or. allocated(p1) .or. allocated(dr1) .or. allocated(dp1) .or. allocated(ddr1)) then !Kenny: edited terry
@@ -1743,14 +1751,34 @@ enddo !terry
     !print *,'test onu', GetOmegaNu()*CP%h0**2/1.d4,CP%h0
     end subroutine Nu_init
 
-    function GetOmegaNu()
-	    real(dl) :: GetOmegaNu, rhonu
-	    integer :: nu_i
+    function GetOmegaNu(P, H0, omegan, xi)
+      use constants
+	    real(dl) :: GetOmegaNu, rhonu, mass, grhom, grhog, grhor, grhormass(3), xi(3), omegan,h0, pnu
+	    integer :: nu_i, i
+      type(CAMBParams)  P
+      grhom = 3*h0**2/c**2*1000**2 !3*h0^2/c^2 (=8*pi*G*rho_crit/c^2)
+      !grhog = kappa/c**2*4*sigma_boltz/c**3*P%tcmb**4*Mpc**2 !8*pi*G/c^2*4*sigma_B/c^3 T^4
+      grhog = kappa/c**2*4*sigma_boltz/c**3*COBE_CMBTemp**4*Mpc**2 !8*pi*G/c^2*4*sigma_B/c^3 T^4
+      grhor = 7._dl/8*(4._dl/11)**(4._dl/3)*grhog !7/8*(4/11)^(4/3)*grhog (per neutrino species)
+      grhormass=0
+      do nu_i = 1, P%Nu_mass_eigenstates
+        grhormass(nu_i)=grhor*P%Nu_mass_degeneracies(nu_i)
+      end do
+      nu_masses = 0
+      !omegan = omnuh2 / (H0/100)**2 
+      do i=1, P%Nu_mass_eigenstates
+        nu_masses(i)=const/(1.5d0*zeta3)*grhom/grhor*omegan*P%Nu_mass_fractions(i) &
+          /P%Nu_mass_degeneracies(i)
+      end do
 	    GetOmegaNu = 0.d0
-	    do nu_i = 1, 4
-		    call Nu_rho(nu_masses(nu_i),rhonu, nu_i)
+	    do nu_i = 1, 3
+		    call nuRhoPres(nu_masses(nu_i),rhonu, pnu, xi(nu_i))
 		    GetOmegaNu = GetOmegaNu + rhonu / grhom * grhormass(nu_i)
 	    enddo
+      if (isnan(GetOmegaNu)) then
+        print *, 'debug for GetOmegaNu', grhom, grhog, grhor, grhormass, nu_masses
+        stop
+      endif
     end function GetOmegaNu
 
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
