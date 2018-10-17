@@ -42,7 +42,7 @@
     logical :: output_file_headers = .true.
 
 
-    logical, parameter :: DebugMsgs=.true. !Set to true to view progress and timing
+    logical, parameter :: DebugMsgs=.false. !Set to true to view progress and timing
 
     logical, parameter :: DebugEvolution = .false. !Set to true to do all the evolution for all k
 
@@ -1631,7 +1631,7 @@
         /CP%Nu_mass_degeneracies(i)
     end do
     CP%omegan = GetOmegaNu(CP, CP%H0, CP%omegan_for_mass, xi_camb(1:3))
-    print *, 'test module', CP%omegan, CP%omegan_for_mass
+    !print *, 'test module', CP%omegan, CP%omegan_for_mass
     !print *, 'test nu mass',nu_masses(1:CP%Nu_mass_eigenstates)
 !    if (allocated(r1)) return !Kenny: edited
      if (allocated(r1) .or. allocated(p1) .or. allocated(dr1) .or. allocated(dp1) .or. allocated(ddr1)) then !Kenny: edited terry
