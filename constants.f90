@@ -64,10 +64,10 @@
     real(dl), parameter :: r23 = ((1 - t13**2*(1 - t12**2))*(c23**2 - s23**2) + 2*t12*t13**2*s13*2*s23*c23)/& !terry
       ((1 - t12**2)*(c23**2 - s23**2) - 2*s13*t12*2*s23*c23) !terry
     !Neutrino mass splittings
-    real(dl), parameter :: delta_mnu21 = 7.54e-5_dl !eV^2 Particle Data Group 2015 (-0.22, + 0.26)
-    real(dl), parameter :: delta_mnu31 = 2.46e-3_dl !eV^2 Particle Data Group 2015 (+- 0.06)
+    real(dl), parameter :: delta_mnu21 = 7.37e-5_dl !eV^2 Particle Data Group 2018 (3 sigma 6.93-7.96)
+    real(dl), parameter :: delta_mnu31 = 2.56e-3_dl !eV^2 Particle Data Group 2018 (3 sigma 2.45-2.69)
     !Round up to 0.06, so consistent with cosmomc's 1 neutrino default
-    real(dl), parameter :: mnu_min_normal = 0.06_dl ! sqrt(delta_mnu31)+sqrt(delta_mnu21)
+    real(dl), parameter :: mnu_min_normal = sqrt(delta_mnu31)+sqrt(delta_mnu21) ! ~0.06 eV
 
     end module constants
 
