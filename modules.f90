@@ -1710,27 +1710,27 @@
     do i=1,nrhopn
       am=am_min*exp((i-1)*dlnam)
       !call nuRhoPres(am,rhonu,pnu) !Kenny: edited
-      call cpu_time(t1)
+      !call cpu_time(t1)
       call nuRhoPres(am,rhonu,pnu,xi_camb(1)) !Kenny: edited terry
-      call cpu_time(t2)
-      totaltime(1) = totaltime(1) + t2 - t1
+      !call cpu_time(t2)
+      !totaltime(1) = totaltime(1) + t2 - t1
       r1(i,1)=log(rhonu) !terry
       p1(i,1)=log(pnu) !terry
       call nuRhoPres(am,rhonu,pnu,xi_camb(2)) !Kenny: edited terry
-      call cpu_time(t1)
-      totaltime(2) = totaltime(2) + t2 - t1
+      !call cpu_time(t1)
+      !totaltime(2) = totaltime(2) + t2 - t1
       r1(i,2)=log(rhonu) !terry
       p1(i,2)=log(pnu) !terry
       call nuRhoPres(am,rhonu,pnu,xi_camb(3)) !Kenny: edited terry
-      call cpu_time(t2)
-      totaltime(3) = totaltime(3) + t2 - t1
+      !call cpu_time(t2)
+      !totaltime(3) = totaltime(3) + t2 - t1
       r1(i,3)=log(rhonu) !terry
       p1(i,3)=log(pnu) !terry
       call nuRhoPres(am,rhonu,pnu,xi_camb(4)) !Kenny: edited terry
       r1(i,4)=log(rhonu) !terry
       p1(i,4)=log(pnu) !terry
-      call cpu_time(t1)
-      totaltime(4) = totaltime(4) + t2 - t1
+      !call cpu_time(t1)
+      !totaltime(4) = totaltime(4) + t2 - t1
     end do
 
     !$OMP END PARALLEL DO
