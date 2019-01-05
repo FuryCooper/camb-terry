@@ -221,11 +221,14 @@
     use ModelParams
     use MassiveNu
     use LambdaGeneral
+    use constants !terry
     implicit none
     real(dl) dtauda
     real(dl), intent(IN) :: a
-    real(dl) rhonu,grhoa2, a2
+    real(dl) rhonu,grhoa2, a2, pnu !terry
     integer nu_i
+    real(dl) rhonu_m_a_massless(3) !terry
+    integer int_nu_massless, nu_j !terry
 
     a2=a**2
 
@@ -238,12 +241,23 @@
     end if
 
     if (CP%Num_Nu_massive /= 0) then
-        !Get massive neutrino density relative to massless
-        do nu_i = 1, CP%nu_mass_eigenstates
-            call Nu_rho(a*nu_masses(nu_i),rhonu)
-            grhoa2=grhoa2+rhonu*grhormass(nu_i)
-        end do
+      !Get massive neutrino density relative to massless
+      do nu_i = 1, CP%nu_mass_eigenstates
+        !call Nu_rho(a*nu_masses(nu_i),rhonu)
+        call Nu_rho(a*nu_masses(nu_i),rhonu,nu_i) !terry
+        grhoa2=grhoa2+rhonu*grhormass(nu_i)
+        if (isnan(rhonu) .or. rhonu<0.d0) then
+          print *, 'dtauda rhonu<0', rhonu, a, nu_masses(nu_i), nu_i, grhormass(nu_i)
+          stop
+        endif
+      end do
     end if
+
+    if (isnan(grhoa2) .or. grhoa2<0.d0) then
+      print *, 'dtauda NaN, grhoa2', grhoa2, grhob, grhoc, grhog, grhok, grhov
+      print *, 'neutrino params', grhormass, nu_masses, rhonu
+      stop
+    endif
 
     dtauda=sqrt(3/grhoa2)
 
@@ -1043,7 +1057,7 @@
     call CopyScalarVariableArray(y,yout, EV, EVout)
 
     !Get density and pressure as ratio to massles by interpolation from table
-    call Nu_background(a*nu_masses(nu_i),rhonu,pnu)
+    call Nu_background(a*nu_masses(nu_i),rhonu,pnu, nu_i) !terry
 
     !Integrate over q
     call Nu_Integrate_L012(EV, y, a, nu_i, clxnu,qnu,dpnu,pinu)
@@ -1093,7 +1107,7 @@
         grhormass_t=grhormass(nu_i)/a**2
 
         !Get density and pressure as ratio to massless by interpolation from table
-        call Nu_background(a*nu_masses(nu_i),rhonu,pnu)
+        call Nu_background(a*nu_masses(nu_i),rhonu,pnu, nu_i) !terry
 
         if (EV%MassiveNuApprox(nu_i)) then
             clxnu=y(EV%nu_ix(nu_i))
@@ -1110,7 +1124,7 @@
             clxnu = clxnu/rhonu
             pinu=pinu/rhonu
             adotoa = 1/(a*dtauda(a))
-            rhonudot = Nu_drho(a*nu_masses(nu_i),adotoa,rhonu)
+            rhonudot = Nu_drho(a*nu_masses(nu_i),adotoa,rhonu, nu_i)
 
             call Nu_pinudot(EV,y, yprime, a,adotoa, nu_i,pinudot)
             pinudot=pinudot/rhonu - rhonudot/rhonu*pinu
@@ -1160,11 +1174,11 @@
     do iq=1,EV%nq(nu_i)
         aq=am/nu_q(iq)
         v=1._dl/sqrt(1._dl+aq*aq)
-        drhonu=drhonu+ nu_int_kernel(iq)* y(ind)/v
-        fnu=fnu+nu_int_kernel(iq)* y(ind+1)
+        drhonu=drhonu+ nu_int_kernel(iq, nu_i)* y(ind)/v !terry
+        fnu=fnu+nu_int_kernel(iq, nu_i)* y(ind+1) !terry
         if (present(dpnu)) then
-            dpnu=dpnu+  nu_int_kernel(iq)* y(ind)*v
-            pinu=pinu+ nu_int_kernel(iq)*y(ind+2)*v
+            dpnu=dpnu+  nu_int_kernel(iq, nu_i)* y(ind)*v !terry
+            pinu=pinu+ nu_int_kernel(iq, nu_i)*y(ind+2)*v !terry
         end if
         ind=ind+EV%lmaxnu_tau(nu_i)+1
     end do
@@ -1174,12 +1188,12 @@
         aq=am/nu_q(iq)
         v=1._dl/sqrt(1._dl+aq*aq)
         pert_scale=(nu_masses(nu_i)/nu_q(iq))**2/2
-        tmp = nu_int_kernel(iq)*(y(EV%r_ix)  + pert_scale*y(ind)  )
+        tmp = nu_int_kernel(iq, nu_i)*(y(EV%r_ix)  + pert_scale*y(ind)  ) !terry
         drhonu=drhonu+ tmp/v
-        fnu=fnu+nu_int_kernel(iq)*(y(EV%r_ix+1)+ pert_scale*y(ind+1))
+        fnu=fnu+nu_int_kernel(iq, nu_i)*(y(EV%r_ix+1)+ pert_scale*y(ind+1)) !terry
         if (present(dpnu)) then
             dpnu=dpnu+ tmp*v
-            pinu = pinu+ nu_int_kernel(iq)*(y(EV%r_ix+2)+ pert_scale*y(ind+2))*v
+            pinu = pinu+ nu_int_kernel(iq, nu_i)*(y(EV%r_ix+2)+ pert_scale*y(ind+2))*v !terry
         end if
     end do
 
@@ -1212,7 +1226,7 @@
         aqdot=aq*adotoa
         v=1._dl/sqrt(1._dl+aq*aq)
         vdot=-aq*aqdot/(1._dl+aq*aq)**1.5d0
-        pinudot=pinudot+nu_int_kernel(iq)*(ydot(ind)*v+y(ind)*vdot)
+        pinudot=pinudot+nu_int_kernel(iq, nu_i)*(ydot(ind)*v+y(ind)*vdot) !terry
         ind=ind+EV%lmaxnu_tau(nu_i)+1
     end do
     ind = EV%nu_pert_ix+2
@@ -1225,7 +1239,7 @@
         vdot=-aq*aqdot/(1._dl+aq*aq)**1.5d0
         psi2dot=ydot(EV%r_ix+2)  + pert_scale*ydot(ind)
         psi2=y(EV%r_ix+2)  + pert_scale*y(ind)
-        pinudot=pinudot+nu_int_kernel(iq)*(psi2dot*v+psi2*vdot)
+        pinudot=pinudot+nu_int_kernel(iq, nu_i)*(psi2dot*v+psi2*vdot) !terry
     end do
 
     end subroutine Nu_pinudot
@@ -1247,7 +1261,7 @@
         q=nu_q(iq)
         aq=am/q
         v=1._dl/sqrt(1._dl+aq*aq)
-        pinu=pinu+nu_int_kernel(iq)*y(ind)*v
+        pinu=pinu+nu_int_kernel(iq, nu_i)*y(ind)*v !terry
         ind =ind+EV%lmaxnut+1
     end do
 
@@ -1275,9 +1289,9 @@
         q=nu_q(iq)
         aq=am/q
         v=1._dl/sqrt(1._dl+aq*aq)
-        G11=G11+nu_int_kernel(iq)*y(ind+1)*v**2
+        G11=G11+nu_int_kernel(iq, nu_i)*y(ind+1)*v**2 !terry
         if (EV%lmaxnu_tau(nu_i)>2) then
-            G30=G30+nu_int_kernel(iq)*y(ind+3)*v**2
+            G30=G30+nu_int_kernel(iq, nu_i)*y(ind+3)*v**2 !terry
         end if
         ind = ind+EV%lmaxnu_tau(nu_i)+1
     end do
@@ -1302,7 +1316,7 @@
         grhormass_t=grhormass(nu_i)/a**2
 
         !Get density and pressure as ratio to massless by interpolation from table
-        call Nu_background(a*nu_masses(nu_i),rhonu,pnu)
+        call Nu_background(a*nu_masses(nu_i),rhonu,pnu, nu_i) !terry
 
         if (EV%MassiveNuApprox(nu_i)) then
             clxnu=y(EV%nu_ix(nu_i))
@@ -2769,7 +2783,7 @@
     !Do massive neutrinos
     if (CP%Num_Nu_Massive >0) then
         do nu_i=1,CP%Nu_mass_eigenstates
-            call Nu_rho(a*nu_masses(nu_i),rhonu)
+            call Nu_rho(a*nu_masses(nu_i),rhonu, nu_i) !terry
             grho=grho+grhormass(nu_i)*rhonu/a2
         end do
     end if
