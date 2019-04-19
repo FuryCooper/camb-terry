@@ -1580,9 +1580,10 @@
 
     integer nqmax !actual number of q modes evolves
     real(dl) :: xi_fac(2,4) !terry
+    logical :: xifacOK = .false.
 
     public const,Nu_Init,Nu_background, Nu_rho, Nu_drho,  nqmax0, nqmax, &
-    nu_int_kernel, nu_q, GetOmegaNu, nuRhoPres, sum_mnu_for_m1, neutrino_mass_fac
+    nu_int_kernel, nu_q, GetOmegaNu, nuRhoPres, sum_mnu_for_m1, neutrino_mass_fac, Get_xi_Neff
     contains
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
@@ -1625,6 +1626,7 @@
 	    xi_fac(1,i) = (1._dl+30._dl*(CP%xi_nu(i)**2._dl)/7._dl/(const_pi**2._dl)+15._dl*(CP%xi_nu(i)**4._dl)/7._dl/(const_pi**4._dl)) !terry
 	    xi_fac(2,i) = (1._dl + 3._dl / const_pi / const_pi * CP%xi_nu(i)**2) !terry
     enddo
+    xifacOK = .true.
     nu_masses = 0
     do i=1, CP%Nu_mass_eigenstates
         nu_masses(i)=const/(1.5d0*zeta3)*grhom/grhor*CP%omegan_for_mass*CP%Nu_mass_fractions(i) &
@@ -1750,6 +1752,20 @@ enddo !terry
     !print *, 'nu_init total time:', totaltime(1:4)
     !print *,'test onu', GetOmegaNu()*CP%h0**2/1.d4,CP%h0
     end subroutine Nu_init
+
+    function Get_xi_Neff(xi, neff_in)
+      use constants
+      real(dl) :: Get_xi_Neff, xi_fac(3), xi(3), neff_in, neff
+      optional :: neff_in
+      integer :: i
+      neff = 3.046d0
+      if (present(neff_in)) neff = neff_in
+      do i = 1, 3
+        xi_fac(i) = (1._dl+30._dl*(xi(i)**2._dl)/7._dl/(const_pi**2._dl)+15._dl*(xi(i)**4._dl)/7._dl/(const_pi**4._dl))
+      enddo
+      Get_xi_Neff = neff/3 * sum(xi_fac(1:3))
+      return 
+    end function
 
     function GetOmegaNu(P, H0, omegan, xi)
       use constants
