@@ -1,7 +1,4 @@
-    !General numerical routines and global accuracy. Includes modified dverk for CAMB.
-
-
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    !Low-level numerical routines for splines and dverk for differential equation integration.
 
     subroutine splder(y,dy,n, g)
     use Precision
@@ -30,7 +27,7 @@
     do i=n1,1,-1
         dy(i)=f(i)-g(i)*dy(i+1)
     end do
-    deallocate(f)
+
     end subroutine splder
     !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     subroutine splini(g,n)
@@ -46,202 +43,6 @@
         g(i)=1/(4._dl-g(i-1))
     end do
     end subroutine splini
-
-
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-    function rombint2(f,a,b,tol, maxit, minsteps)
-    use precision
-    !  Rombint returns the integral from a to b of using Romberg integration.
-    !  The method converges provided that f(x) is continuous in (a,b).
-    !  f must be real(dl) and must be declared external in the calling
-    !  routine.  tol indicates the desired relative accuracy in the integral.
-
-    ! Modified by AL to specify max iterations and minimum number of steps
-    ! (min steps useful to stop wrong results on periodic or sharp functions)
-    implicit none
-    integer, parameter :: MAXITER=20,MAXJ=5
-    dimension g(MAXJ+1)
-    real(dl) f
-    external f
-    real(dl) :: rombint2
-    real(dl), intent(in) :: a,b,tol
-    integer, intent(in):: maxit,minsteps
-
-    integer :: nint, i, k, jmax, j
-    real(dl) :: h, gmax, error, g, g0, g1, fourj
-
-    h=0.5d0*(b-a)
-    gmax=h*(f(a)+f(b))
-    g(1)=gmax
-    nint=1
-    error=1.0d20
-    i=0
-    do
-        i=i+1
-        if (i > maxit.or.(i > 5.and.abs(error) < tol) .and. nint > minsteps) exit
-        !  Calculate next trapezoidal rule approximation to integral.
-        g0=0._dl
-        do k=1,nint
-            g0=g0+f(a+(k+k-1)*h)
-        end do
-        g0=0.5d0*g(1)+h*g0
-        h=0.5d0*h
-        nint=nint+nint
-        jmax=min(i,MAXJ)
-        fourj=1._dl
-        do j=1,jmax
-            !  Use Richardson extrapolation.
-            fourj=4._dl*fourj
-            g1=g0+(g0-g(j))/(fourj-1._dl)
-            g(j)=g0
-            g0=g1
-        end do
-        if (abs(g0).gt.tol) then
-            error=1._dl-gmax/g0
-        else
-            error=gmax
-        end if
-        gmax=g0
-        g(jmax+1)=g0
-    end do
-
-    rombint2=g0
-    if (i > maxit .and. abs(error) > tol)  then
-        write(*,*) 'Warning: Rombint2 failed to converge; '
-        write (*,*)'integral, error, tol:', rombint2,error, tol
-    end if
-
-    end function rombint2
-
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-    function rombint(f,a,b,tol)
-    use Precision
-    !  Rombint returns the integral from a to b of using Romberg integration.
-    !  The method converges provided that f(x) is continuous in (a,b).
-    !  f must be real(dl) and must be declared external in the calling
-    !  routine.  tol indicates the desired relative accuracy in the integral.
-    !
-    implicit none
-    integer, parameter :: MAXITER=20
-    integer, parameter :: MAXJ=5
-    dimension g(MAXJ+1)
-    real(dl) f
-    external f
-    real(dl) :: rombint
-    real(dl), intent(in) :: a,b,tol
-    integer :: nint, i, k, jmax, j
-    real(dl) :: h, gmax, error, g, g0, g1, fourj
-    !
-
-    h=0.5d0*(b-a)
-    gmax=h*(f(a)+f(b))
-    g(1)=gmax
-    nint=1
-    error=1.0d20
-    i=0
-10  i=i+1
-    if (i.gt.MAXITER.or.(i.gt.5.and.abs(error).lt.tol)) &
-        go to 40
-    !  Calculate next trapezoidal rule approximation to integral.
-    g0=0._dl
-    do 20 k=1,nint
-        g0=g0+f(a+(k+k-1)*h)
-20  continue
-    g0=0.5d0*g(1)+h*g0
-    h=0.5d0*h
-    nint=nint+nint
-    jmax=min(i,MAXJ)
-    fourj=1._dl
-    do 30 j=1,jmax
-        !  Use Richardson extrapolation.
-        fourj=4._dl*fourj
-        g1=g0+(g0-g(j))/(fourj-1._dl)
-        g(j)=g0
-        g0=g1
-30  continue
-    if (abs(g0).gt.tol) then
-        error=1._dl-gmax/g0
-    else
-        error=gmax
-    end if
-    gmax=g0
-    g(jmax+1)=g0
-    go to 10
-40  rombint=g0
-    if (i.gt.MAXITER.and.abs(error).gt.tol)  then
-        write(*,*) 'Warning: Rombint failed to converge; '
-        write (*,*)'integral, error, tol:', rombint,error, tol
-    end if
-
-    end function rombint
-
-
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-    function rombint_obj(obj,f,a,b,tol, maxit)
-    use Precision
-    !  Rombint returns the integral from a to b of using Romberg integration.
-    !  The method converges provided that f(x) is continuous in (a,b).
-    !  f must be real(dl) and must be declared external in the calling
-    !  routine.  tol indicates the desired relative accuracy in the integral.
-    !
-    implicit none
-    integer, intent(in), optional :: maxit
-    integer :: MAXITER=20
-    integer, parameter :: MAXJ=5
-    dimension g(MAXJ+1)
-    real obj !dummy
-    real(dl) f
-    external f
-    real(dl) :: rombint_obj
-    real(dl), intent(in) :: a,b,tol
-    integer :: nint, i, k, jmax, j
-    real(dl) :: h, gmax, error, g, g0, g1, fourj
-    !
-
-    if (present(maxit)) then
-        MaxIter = maxit
-    end if
-    h=0.5d0*(b-a)
-    gmax=h*(f(obj,a)+f(obj,b))
-    g(1)=gmax
-    nint=1
-    error=1.0d20
-    i=0
-10  i=i+1
-    if (i.gt.MAXITER.or.(i.gt.5.and.abs(error).lt.tol)) &
-        go to 40
-    !  Calculate next trapezoidal rule approximation to integral.
-    g0=0._dl
-    do 20 k=1,nint
-        g0=g0+f(obj,a+(k+k-1)*h)
-20  continue
-    g0=0.5d0*g(1)+h*g0
-    h=0.5d0*h
-    nint=nint+nint
-    jmax=min(i,MAXJ)
-    fourj=1._dl
-    do 30 j=1,jmax
-        !  Use Richardson extrapolation.
-        fourj=4._dl*fourj
-        g1=g0+(g0-g(j))/(fourj-1._dl)
-        g(j)=g0
-        g0=g1
-30  continue
-    if (abs(g0).gt.tol) then
-        error=1._dl-gmax/g0
-    else
-        error=gmax
-    end if
-    gmax=g0
-    g(jmax+1)=g0
-    go to 10
-40  rombint_obj=g0
-    if (i.gt.MAXITER.and.abs(error).gt.tol)  then
-        write(*,*) 'Warning: Rombint failed to converge; '
-        write (*,*)'integral, error, tol:', rombint_obj,error, tol
-    end if
-
-    end function rombint_obj
 
 
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -334,7 +135,6 @@
     end subroutine spline_integrate
 
 
-
     !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     !  this is not the splint given in numerical recipes
 
@@ -369,11 +169,11 @@
     !passed object parameter (EV) is any type we like. In reality it is just a pointer.
     subroutine dverk (EV,n, fcn, x, y, xend, tol, ind, c, nw, w)
     use Precision
-    use AMLUtils
+    use MpiUtils
+    use Config, only : GlobalError, error_evolution
     integer n, ind, nw, k
     real(dl) x, y(n), xend, tol, c(*), w(nw,9), temp
-    real EV !It isn't, but as long as it maintains it as a pointer we are OK
-    !     class(*) EV !seems to be correct way to do this in Fortran 2003
+    real EV !it isn't, but as long as it maintains it as a pointer we are OK
     !
     !***********************************************************************
     !                                                                      *
@@ -1121,101 +921,10 @@
     !
 
     write (*,*) 'Error in dverk, x =',x, 'xend=', xend
-    call MpiStop()
-    !
-    !  end abort action
+    call GlobalError('DVERK error', error_evolution)
     !
     end subroutine dverk
 
-    function Newton_Raphson(xxl,xxh,funcs, param, param2) result(xm)
-    use Precision
-    implicit none
-    real(dl), intent(in) :: xxl     ! root bracket 1
-    real(dl), intent(in) :: xxh     ! root bracket 2
-    real(dl)  :: xl,xh, xm     ! root
-    external funcs        ! subroutine for non-linear equation
-    real(dl), intent(in) :: param, param2 !parameters for function
-    integer  :: k                      ! iteration count
-    real(dl) :: xn, f,f2,df, error
-    real(dl), parameter :: half=0.5_dl
-    integer, parameter :: ITERMAX=1000 ! max number of iteration
-    real(dl), parameter :: tol=1.e-8_dl ! tolerance for error
+  
 
-    xl =xxl
-    xh = xxh
-    call funcs(f,df,xl, param, param2)  ! Set xm=f(xl)
-    call funcs(f2,df,xh, param, param2)  ! Set xn=f(xh)
-    if (f*f2 > 0._dl) then           ! check if function changes sign
-        error stop 'Newton_Raphson: root is not bracketed'
-    endif
-    if (f > 0._dl) then               ! Rearrange so that f(xl)< 0.d0 < f(xh)
-        xm = xl
-        xl = xh
-        xh = xm
-    endif
-
-    error = abs(xh-xl)                ! error is width of bracketing interval
-    xm = half*(xl+xh)                 ! Initialize guess for root
-    k = 0                             ! initialize iteration count
-    do while (error > tol .and. k < ITERMAX) ! iterate
-        k = k+1                         ! increment iteration count
-        call funcs(f,df,xm, param, param2) ! calculate f(xm), df(xm)
-        if (f > 0._dl) then              ! Update root bracketing
-            xh = xm                       ! update high
-        else
-            xl = xm                       ! update low
-        endif
-        xn = xm - f/df                  ! Tentative newton-Raphson step
-        if ( (xn-xl)*(xn-xh) > 0._dl ) then ! check if new root falls within bracket
-            xm = half* (xh+xl)            ! if no use a Bisection step
-            error = abs(xh-xl)            ! error is width of interval
-        else
-            error = abs(xn-xm)            ! if within bracket: error is change in root
-            xm = xn                       ! update successful Newton-Raphson step
-        endif
-    enddo
-
-    if (error > tol) then       ! Check if solution converged
-        write(*,*) 'Newton_Raphson:solution did not converge, xn, funcs(xn),D(xn)'
-        write(*,*) xn, f, error
-    endif
-
-    end function Newton_Raphson
-
-
-    subroutine Gauss_Legendre(x,w,n)
-    !Get Gauss-Legendre points x and weights w, for n points
-    use constants
-    implicit none
-    integer, intent(in) :: n
-    real(dl), intent(out) :: x(n), w(n)
-    real(dl), parameter :: eps=1.d-15
-    integer i, j, m
-    real(dl) p1, p2, p3, pp, z, z1
-
-    m=(n+1)/2
-    !$OMP PARALLEL DO DEFAULT(PRIVATE), SHARED(x,w,n,m)
-    do i=1,m
-        z=cos(const_pi*(i-0.25_dl)/(n+0.5_dl))
-        z1 = 0._dl
-        do while (abs(z-z1) > eps)
-            p1=1._dl
-            p2=0._dl
-            do j=1,n
-                p3=p2
-                p2=p1
-                p1=((2*j-1)*z*p2-(j-1)*p3)/j
-            end do
-            pp=n*(z*p1-p2)/(z**2-1._dl)
-            z1=z
-            z=z1-p1/pp
-        end do
-        x(i)=-z
-        x(n+1-i)=z
-        w(i)=2/((1._dl-z**2)*pp**2)
-        w(n+1-i)=w(i)
-    end do
-    !$OMP END PARALLEL DO
-
-    end subroutine Gauss_Legendre
 

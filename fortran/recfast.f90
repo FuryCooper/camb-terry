@@ -37,15 +37,15 @@
     !CD     Description: Solves for ionisation history since recombination
     !CD     using the equations in Seager, Sasselov & Scott (ApJ, 1999).
     !CD     The Cosmological model can be flat or open.
-    !CD	 The matter temperature is also followed, with an update from
-    !CD	 Scott & Scott (2009).
-    !CD	 The values for \alpha_B for H are from Hummer (1994).
-    !CD	 The singlet HeI coefficient is a fit from the full code.
-    !CD	 Additional He "fudge factors" are as described in Wong, Moss
-    !CD	 and Scott (2008).
-    !CD	 Extra fitting function included (in optical depth) to account
-    !CD	 for extra H physics described in Rubino-Martin et al. (2010).
-    !CD	 Care is taken to use the most accurate constants.
+    !CD  The matter temperature is also followed, with an update from
+    !CD  Scott & Scott (2009).
+    !CD  The values for \alpha_B for H are from Hummer (1994).
+    !CD  The singlet HeI coefficient is a fit from the full code.
+    !CD  Additional He "fudge factors" are as described in Wong, Moss
+    !CD  and Scott (2008).
+    !CD  Extra fitting function included (in optical depth) to account
+    !CD  for extra H physics described in Rubino-Martin et al. (2010).
+    !CD  Care is taken to use the most accurate constants.
     !C
     !CA     Arguments:
     !CA     Name, Description
@@ -72,12 +72,12 @@
     !CA     Yp is the primordial helium abundace
     !CA     fHe is He/H number ratio = Yp/4(1-Yp)
     !CA     Trad and Tmat are radiation and matter temperatures
-    !CA	    epsilon is the approximate difference (=Trad-Tmat) at high z
+    !CA     epsilon is the approximate difference (=Trad-Tmat) at high z
     !CA     OmegaB is Omega in baryons today
     !CA     H is Hubble constant in units of 100 km/s/Mpc
     !CA     HO is Hubble constant in SI units
     !CA     bigH is 100 km/s/Mpc in SI units
-    !CA	    Hz is the value of H at the specific z (in ION)
+    !CA     Hz is the value of H at the specific z (in ION)
     !CA     G is grvitational constant
     !CA     n is number density of hydrogen
     !CA     Nnow is number density today
@@ -135,13 +135,13 @@
     !CA sigma_He_2Pt: H ionization x-section at HeI 23P1-11S0 freq. in m^2
     !CA CL_PSt = h_P*C*(L_He_2Pt - L_He_2st)/k_B
     !CA CfHe_t: triplet statistical correction
-    !CA	Hswitch is an boolean for modifying the H recombination
-    !CA	AGauss1 is the amplitude of the 1st Gaussian for the H fudging
-    !CA	AGauss2 is the amplitude of the 2nd Gaussian for the H fudging
-    !CA	zGauss1 is the ln(1+z) central value of the 1st Gaussian
-    !CA	zGauss2 is the ln(1+z) central value of the 2nd Gaussian
-    !CA	wGauss1 is the width of the 1st Gaussian
-    !CA	wGauss2 is the width of the 2nd Gaussian
+    !CA Hswitch is an boolean for modifying the H recombination
+    !CA AGauss1 is the amplitude of the 1st Gaussian for the H fudging
+    !CA AGauss2 is the amplitude of the 2nd Gaussian for the H fudging
+    !CA zGauss1 is the ln(1+z) central value of the 1st Gaussian
+    !CA zGauss2 is the ln(1+z) central value of the 2nd Gaussian
+    !CA wGauss1 is the width of the 1st Gaussian
+    !CA wGauss2 is the width of the 2nd Gaussian
 
 
     !CA     tol: tolerance for the integrator
@@ -194,69 +194,23 @@
     !CH                       including HeI rec. fudge factor)
     !                Feb 2008   Recfast 1.4 changes above added (AML)
     !                           removed Dubrovich option (wrong anyway)
-    !CH   			 Sept 2008 (added extra term to make transition, smoother for Tmat evolution)
+    !CH              Sept 2008 (added extra term to make transition, smoother for Tmat evolution)
     !                Sept 2008 Recfast 1.4.2 changes above added (AML)
     !                          General recombination module structure, fix to make He x_e smooth also in recfast (AML)
-    !CH		 Jan 2010 (added fitting function to modify K
-    !CH			 	 to match x_e(z) for new H physics)
+    !CH      Jan 2010 (added fitting function to modify K
+    !CH              to match x_e(z) for new H physics)
     !AL             June 2012 updated fudge parameters to match HyRec and CosmoRec (AML)
     !AL             Sept 2012 changes now in public recfast, version number changed to match Recfast 1.5.2.
 
-    !!      ===============================================================
-
-    module RECDATA
-    use constants
-    implicit none
-
-
-    real(dl) Lambda,DeltaB,DeltaB_He,Lalpha,mu_H,mu_T,H_frac
-    real(dl) Lambda_He,Lalpha_He,Bfact,CK_He,CL_He
-    real(dl) L_H_ion,L_H_alpha,L_He1_ion,L_He2_ion,L_He_2s,L_He_2p
-    real(dl) CB1,CDB,CR,CK,CL,CT,CB1_He1,CB1_He2,CDB_He,fu
-    real(dl) A2P_s,A2P_t,sigma_He_2Ps,sigma_He_2Pt
-    real(dl)  L_He_2Pt,L_He_2St,L_He2St_ion
-
-
-    real(dl), parameter :: bigH=100.0D3/Mpc !Ho in s-1
-    real(dl), parameter :: sigma = sigma_thomson
-    real(dl), parameter :: not4  = mass_ratio_He_H    !mass He/H atom
-
-    real(dl) Tnow,HO
-    integer :: n_eq = 3
-
-    !The following only used for approximations where small effect
-    real(dl) OmegaK, OmegaT, z_eq
-
-
-    !Fundamental constants in SI units
-    !      ("not4" pointed out by Gary Steigman)
-
-    data    Lambda      /8.2245809d0/
-    data    Lambda_He   /51.3d0/    !new value from Dalgarno
-    data    L_H_ion     /1.096787737D7/ !level for H ion. (in m^-1)
-    data    L_H_alpha   /8.225916453D6/ !averaged over 2 levels
-    data    L_He1_ion   /1.98310772D7/  !from Drake (1993)
-    data    L_He2_ion   /4.389088863D7/ !from JPhysChemRefData (1987)
-    data    L_He_2s     /1.66277434D7/  !from Drake (1993)
-    data    L_He_2p     /1.71134891D7/  !from Drake (1993)
-    !   2 photon rates and atomic levels in SI units
-
-    data    A2P_s       /1.798287D9/    !Morton, Wu & Drake (2006)
-    data    A2P_t       /177.58D0/      !Lach & Pachuski (2001)
-    data    L_He_2Pt    /1.690871466D7/ !Drake & Morton (2007)
-    data    L_He_2St    /1.5985597526D7/ !Drake & Morton (2007)
-    data    L_He2St_ion /3.8454693845D6/ !Drake & Morton (2007)
-    data    sigma_He_2Ps    /1.436289D-22/  !Hummer & Storey (1998)
-    data    sigma_He_2Pt    /1.484872D-22/  !Hummer & Storey (1998)
-    !    Atomic data for HeI
-
-
-    end module RECDATA
 
 
     module Recombination
     use constants
-    use AMLUtils
+    use classes
+    use DarkAge21cm
+    use MathUtils
+    use results
+    use MpiUtils, only : MpiStop
     implicit none
     private
 
@@ -270,22 +224,27 @@
     logical, parameter  :: RECFAST_Hswitch_default = .true. !include H corrections (v1.5, 2010)
     real(dl), parameter :: RECFAST_fudge_default = 1.14_dl !1.14_dl
     real(dl), parameter :: RECFAST_fudge_default2 = 1.105d0 + 0.02d0
-    !fudge parameter if RECFAST_Hswitch
 
-    real(dl) :: AGauss1 =      -0.14D0  !Amplitude of 1st Gaussian
-    real(dl) :: AGauss2 =       0.079D0 ! 0.05D0  !Amplitude of 2nd Gaussian
-    real(dl) :: zGauss1 =       7.28D0  !ln(1+z) of 1st Gaussian
-    real(dl) :: zGauss2=        6.73D0  !ln(1+z) of 2nd Gaussian
-    real(dl) :: wGauss1=        0.18D0  !Width of 1st Gaussian
-    real(dl) :: wGauss2=        0.33D0  !Width of 2nd Gaussian
-    !Gaussian fits for extra H physics (fit by Adam Moss , modified by Antony Lewis)
+    Type RecombinationData
+        real(dl) :: Recombination_saha_z !Redshift at which saha OK
+        real(dl), private :: NNow, fHe
+        real(dl), private :: zrec(Nz),xrec(Nz),dxrec(Nz), Tsrec(Nz) ,dTsrec(Nz), tmrec(Nz),dtmrec(Nz)
+        real(dl), private :: DeltaB,DeltaB_He,Lalpha,mu_H,mu_T
 
-    type RecombinationParams
+        real(dl), private :: HO, Tnow, fu
+        integer, private :: n_eq = 3
+        logical :: doTspin = .false.
 
-        real(dl) :: RECFAST_fudge
-        real(dl) :: RECFAST_fudge_He
-        integer  :: RECFAST_Heswitch
-        logical  :: RECFAST_Hswitch
+        !The following only used for approximations where small effect
+        real(dl) :: OmegaK, OmegaT, z_eq
+        class(CAMBdata), pointer :: State
+    end Type RecombinationData
+
+    type, extends(TRecombinationModel) :: TRecfast
+        real(dl) :: RECFAST_fudge  = RECFAST_fudge_default2
+        real(dl) :: RECFAST_fudge_He = RECFAST_fudge_He_default
+        integer  :: RECFAST_Heswitch = RECFAST_Heswitch_default
+        logical  :: RECFAST_Hswitch = RECFAST_Hswitch_default
         !0) no change from old Recfast'
         !1) full expression for escape probability for singlet'
         !'   1P-1S transition'
@@ -298,489 +257,521 @@
         !5) including only 1, 2 and 3'
         !6) including all of 1 to 4'
 
-    end  type RecombinationParams
+        !fudge parameter if RECFAST_Hswitch
+        !Gaussian fits for extra H physics (fit by Adam Moss , modified by Antony Lewis)
+        real(dl) :: AGauss1 =      -0.14D0  !Amplitude of 1st Gaussian
+        real(dl) :: AGauss2 =       0.079D0 ! 0.05D0  !Amplitude of 2nd Gaussian
+        real(dl) :: zGauss1 =       7.28D0  !ln(1+z) of 1st Gaussian
+        real(dl) :: zGauss2=        6.73D0  !ln(1+z) of 2nd Gaussian
+        real(dl) :: wGauss1=        0.18D0  !Width of 1st Gaussian
+        real(dl) :: wGauss2=        0.33D0  !Width of 2nd Gaussian
+        Type(RecombinationData), allocatable :: Calc
+    contains
+    procedure :: ReadParams => TRecfast_ReadParams
+    procedure :: Validate => TRecfast_Validate
+    procedure :: Init => TRecfast_init
+    procedure :: x_e => TRecfast_xe
+    procedure :: xe_Tm => TRecfast_xe_Tm !ionization fraction and baryon temperature
+    procedure :: T_m => TRecfast_tm !baryon temperature
+    procedure :: T_s => TRecfast_ts !Spin temperature
+    procedure :: Version => TRecfast_version
+    procedure :: dDeltaxe_dtau => TRecfast_dDeltaxe_dtau
+    procedure :: get_Saha_z => TRecfast_Get_Saha_z
+    procedure, nopass :: SelfPointer => TRecfast_SelfPointer
 
-    character(LEN=*), parameter :: Recombination_Name = 'Recfast_1.5.2'
+    end type TRecfast
 
-    real(dl) zrec(Nz),xrec(Nz),dxrec(Nz), Tsrec(Nz) ,dTsrec(Nz), tmrec(Nz),dtmrec(Nz)
+    character(LEN=*), parameter :: Recfast_Version = 'Recfast_1.5.2'
 
-    real(dl), parameter :: Do21cm_mina = 1/(1+900.) !at which to start evolving Delta_TM
     logical, parameter :: evolve_Ts = .false. !local equilibrium is very accurate
     real(dl), parameter :: Do21cm_minev = 1/(1+400.) !at which to evolve T_s
 
+    real(dl), parameter :: bigH=100.0D3/Mpc !Ho in s-1
+    real(dl), parameter :: sigma = sigma_thomson
+    real(dl), parameter :: not4  = mass_ratio_He_H    !mass He/H atom
 
     real(dl), parameter :: B01 = 3*B10
-    real(dl) :: NNow, fHe
+    !Fundamental constants in SI units
+    !      ("not4" pointed out by Gary Steigman)
 
+    real(dl), parameter ::  Lambda = 8.2245809d0
+    real(dl), parameter :: Lambda_He = 51.3d0    !new value from Dalgarno
+    real(dl), parameter :: L_H_ion   = 1.096787737D7 !level for H ion. (in m^-1)
+    real(dl), parameter :: L_H_alpha = 8.225916453D6 !averaged over 2 levels
+    real(dl), parameter :: L_He1_ion = 1.98310772D7  !from Drake (1993)
+    real(dl), parameter :: L_He2_ion = 4.389088863D7 !from JPhysChemRefData (1987)
+    real(dl), parameter :: L_He_2s   = 1.66277434D7  !from Drake (1993)
+    real(dl), parameter :: L_He_2p   = 1.71134891D7  !from Drake (1993)
+    !   2 photon rates and atomic levels in SI units
 
-    logical :: Do21cm = .false.
-    logical :: doTmatTspin = .false.
+    real(dl), parameter :: A2P_s     = 1.798287D9    !Morton, Wu & Drake (2006)
+    real(dl), parameter :: A2P_t     = 177.58D0      !Lach & Pachuski (2001)
+    real(dl), parameter :: L_He_2Pt  = 1.690871466D7 !Drake & Morton (2007)
+    real(dl), parameter :: L_He_2St  = 1.5985597526D7 !Drake & Morton (2007)
+    real(dl), parameter :: L_He2St_ion  =3.8454693845D6 !Drake & Morton (2007)
+    real(dl), parameter :: sigma_He_2Ps  = 1.436289D-22  !Hummer & Storey (1998)
+    real(dl), parameter :: sigma_He_2Pt  = 1.484872D-22  !Hummer & Storey (1998)
+    !    Atomic data for HeI
 
-    real(dl) :: recombination_saha_z !Redshift at which saha OK
-    real(dl) :: recombination_saha_tau !set externally
+    !       Set up some constants so they don't have to be calculated later
+    real(dl), parameter :: Lalpha = 1.d0/L_H_alpha
+    real(dl), parameter :: Lalpha_He = 1.d0/L_He_2p
+    real(dl), parameter :: DeltaB = h_P*C*(L_H_ion-L_H_alpha)
+    real(dl), parameter :: CDB = DeltaB/k_B
+    real(dl), parameter :: DeltaB_He = h_P*C*(L_He1_ion-L_He_2s)   !2s, not 2p
+    real(dl), parameter :: CDB_He = DeltaB_He/k_B
+    real(dl), parameter :: CB1 = h_P*C*L_H_ion/k_B
+    real(dl), parameter :: CB1_He1 = h_P*C*L_He1_ion/k_B   !ionization for HeI
+    real(dl), parameter :: CB1_He2 = h_P*C*L_He2_ion/k_B   !ionization for HeII
+    real(dl), parameter :: CR = const_twopi*(m_e/h_P)*(k_B/h_P)
+    real(dl), parameter :: CK = Lalpha**3/(const_eightpi)
+    real(dl), parameter :: CK_He = Lalpha_He**3/(const_eightpi)
+    real(dl), parameter :: CL = C*h_P/(k_B*Lalpha)
+    real(dl), parameter :: CL_He = C*h_P/(k_B/L_He_2s) !comes from det.bal. of 2s-1s
+    real(dl), parameter :: CT = Compton_CT / MPC_in_sec
 
+    real(dl), parameter :: Bfact = h_P*C*(L_He_2p-L_He_2s)/k_B
 
-    public RecombinationParams, Recombination_xe, Recombination_tm,Recombination_ts ,Recombination_init,   &
-        Recombination_ReadParams, Recombination_SetDefParams, Recombination_Validate, Recombination_Name, &
-        kappa_HH_21cm,kappa_eH_21cm,kappa_pH_21cm, &
-        Do21cm, doTmatTspin, Do21cm_mina, dDeltaxe_dtau, &
-        recombination_saha_tau, recombination_saha_z
+    !       Matter departs from radiation when t(Th) > H_frac * t(H)
+    !       choose some safely small number
+    real(dl), parameter :: H_frac = 1D-3
+
+    procedure(obj_function), private :: dtauda
+
+    public TRecfast,  CB1
 
     contains
 
+    subroutine TRecfast_ReadParams(this, Ini)
+    use IniObjects
+    class(TRecfast) :: this
+    class(TIniFile), intent(in) :: Ini
 
-
-    subroutine Recombination_ReadParams(R, Ini)
-    use IniFile
-    Type(RecombinationParams) :: R
-    Type(TIniFile) :: Ini
-
-
-    R%RECFAST_fudge_He = Ini_Read_Double_File(Ini,'RECFAST_fudge_He',RECFAST_fudge_He_default)
-    R%RECFAST_Heswitch = Ini_Read_Int_File(Ini, 'RECFAST_Heswitch',RECFAST_Heswitch_default)
-    R%RECFAST_Hswitch = Ini_Read_Logical_File(Ini, 'RECFAST_Hswitch',RECFAST_Hswitch_default)
-    R%RECFAST_fudge = Ini_Read_Double_File(Ini,'RECFAST_fudge',RECFAST_fudge_default)
-    AGauss1 = Ini_REad_Double_File(Ini,'AGauss1',AGauss1)
-    AGauss2 = Ini_REad_Double_File(Ini,'AGauss2',AGauss2)
-    zGauss1 = Ini_REad_Double_File(Ini,'zGauss1',zGauss1)
-    zGauss2 = Ini_REad_Double_File(Ini,'zGauss2',zGauss2)
-    wGauss1 = Ini_REad_Double_File(Ini,'wGauss1',wGauss1)
-    wGauss2 = Ini_REad_Double_File(Ini,'wGauss2',wGauss2)
-    if (R%RECFAST_Hswitch) then
-        R%RECFAST_fudge = R%RECFAST_fudge - (RECFAST_fudge_default - RECFAST_fudge_default2)
+    this%RECFAST_fudge_He = Ini%Read_Double('RECFAST_fudge_He', RECFAST_fudge_He_default)
+    this%RECFAST_Heswitch = Ini%Read_Int('RECFAST_Heswitch', RECFAST_Heswitch_default)
+    this%RECFAST_Hswitch = Ini%Read_Logical('RECFAST_Hswitch', RECFAST_Hswitch_default)
+    this%RECFAST_fudge = Ini%Read_Double('RECFAST_fudge', RECFAST_fudge_default)
+    call Ini%Read('AGauss1',this%AGauss1)
+    call Ini%Read('AGauss2',this%AGauss2)
+    call Ini%Read('zGauss1',this%zGauss1)
+    call Ini%Read('zGauss2',this%zGauss2)
+    call Ini%Read('wGauss1',this%wGauss1)
+    call Ini%Read('wGauss2',this%wGauss2)
+    if (this%RECFAST_Hswitch) then
+        this%RECFAST_fudge = this%RECFAST_fudge - (RECFAST_fudge_default - RECFAST_fudge_default2)
     end if
-    end subroutine Recombination_ReadParams
+    end subroutine TRecfast_ReadParams
 
-    subroutine Recombination_SetDefParams(R)
-    type (RecombinationParams) ::R
-
-
-    R%RECFAST_fudge = RECFAST_fudge_default
-    R%RECFAST_fudge_He = RECFAST_fudge_He_default !Helium fudge parameter
-    R%RECFAST_Heswitch = RECFAST_Heswitch_default
-    R%RECFAST_Hswitch =  RECFAST_Hswitch_default
-    if (R%RECFAST_Hswitch) then
-        R%RECFAST_fudge = RECFAST_fudge_default2
-    end if
-
-    end subroutine Recombination_SetDefParams
-
-
-    subroutine Recombination_Validate(R, OK)
-    Type(RecombinationParams),intent(in) :: R
+    subroutine TRecfast_Validate(this, OK)
+    class(TRecfast),intent(in) :: this
     logical, intent(inout) :: OK
 
-    if (R%RECFAST_Heswitch<0 .or. R%RECFAST_Heswitch > 6) then
+    if (this%RECFAST_Heswitch<0 .or. this%RECFAST_Heswitch > 6) then
         OK = .false.
         write(*,*) 'RECFAST_Heswitch unknown'
     end if
 
-    end subroutine Recombination_Validate
+    end subroutine TRecfast_Validate
 
 
-    function Recombination_tm(a)
-    use RECDATA, only : Tnow
-    real(dl) zst,a,z,az,bz,Recombination_tm
+    function TRecfast_tm(this,a)
+    class(TRecfast) :: this
+    real(dl), intent(in) :: a
+    real(dl) zst,z,az,bz,TRecfast_tm
     integer ilo,ihi
 
-    if (.not. doTmatTspin) call MpiStop('RECFAST: Recombination_tm not stored')
     z=1/a-1
-    if (z >= zrec(1)) then
-        Recombination_tm=Tnow/a
-    else
-        if (z <=zrec(nz)) then
-            Recombination_tm=Tmrec(nz)
+    associate( Calc => this%Calc)
+        if (z >= Calc%zrec(1)) then
+            TRecfast_tm=Calc%Tnow/a
         else
-            zst=(zinitial-z)/delta_z
-            ihi= int(zst)
-            ilo = ihi+1
-            az=zst - int(zst)
-            bz=1-az
-            Recombination_tm=az*Tmrec(ilo)+bz*Tmrec(ihi)+ &
-                ((az**3-az)*dTmrec(ilo)+(bz**3-bz)*dTmrec(ihi))/6._dl
+            if (z <=Calc%zrec(nz)) then
+                TRecfast_tm=Calc%Tmrec(nz)
+            else
+                zst=(zinitial-z)/delta_z
+                ihi= int(zst)
+                ilo = ihi+1
+                az=zst - ihi
+                bz=1-az
+                TRecfast_tm=az*Calc%Tmrec(ilo)+bz*Calc%Tmrec(ihi)+ &
+                    ((az**3-az)*Calc%dTmrec(ilo)+(bz**3-bz)*Calc%dTmrec(ihi))/6._dl
+            endif
         endif
-    endif
+    end associate
 
-    end function Recombination_tm
+    end function TRecfast_tm
 
 
-    function Recombination_ts(a)
+    function TRecfast_ts(this,a)
+    class(TRecfast) :: this
     !zrec(1) is zinitial-delta_z
     real(dl), intent(in) :: a
-    real(dl) zst,z,az,bz,Recombination_ts
+    real(dl) zst,z,az,bz,TRecfast_ts
     integer ilo,ihi
 
     z=1/a-1
-    if (z.ge.zrec(1)) then
-        Recombination_ts=tsrec(1)
-    else
-        if (z.le.zrec(nz)) then
-            Recombination_ts=tsrec(nz)
+    associate(Calc => this%Calc)
+        if (z.ge.Calc%zrec(1)) then
+            TRecfast_ts=Calc%tsrec(1)
         else
-            zst=(zinitial-z)/delta_z
-            ihi= int(zst)
-            ilo = ihi+1
-            az=zst - int(zst)
-            bz=1-az
-
-            Recombination_ts=az*tsrec(ilo)+bz*tsrec(ihi)+ &
-                ((az**3-az)*dtsrec(ilo)+(bz**3-bz)*dtsrec(ihi))/6._dl
-        endif
-    endif
-
-    end function Recombination_ts
-
-
-    function Recombination_xe(a)
-    real(dl), intent(in) :: a
-    real(dl) zst,z,az,bz,Recombination_xe
-    integer ilo,ihi
-
-    z=1/a-1
-    if (z.ge.zrec(1)) then
-        Recombination_xe=xrec(1)
-    else
-        if (z.le.zrec(nz)) then
-            Recombination_xe=xrec(nz)
-        else
-            zst=(zinitial-z)/delta_z
-            ihi= int(zst)
-            ilo = ihi+1
-            az=zst - int(zst)
-            bz=1-az
-            Recombination_xe=az*xrec(ilo)+bz*xrec(ihi)+ &
-                ((az**3-az)*dxrec(ilo)+(bz**3-bz)*dxrec(ihi))/6._dl
-        endif
-    endif
-
-    end function Recombination_xe
-
-
-
-    subroutine Recombination_init(Recomb, OmegaC, OmegaB, Omegan, Omegav, h0inp,tcmb,yp, nnu)
-    !Would love to pass structure as arguments, but F90 would give circular reference...
-    !hence mess passing parameters explcitly and non-generally
-    !Note recfast only uses OmegaB, h0inp, tcmb and yp - others used only for Tmat approximation where effect small
-    !nnu currently not used here
-    use RECDATA
-    use AMLUtils
-    implicit none
-    Type (RecombinationParams) :: Recomb
-
-    real(dl), save :: last_OmB =0, Last_YHe=0, Last_H0=0, Last_dtauda=0, last_fudge, last_fudgeHe
-
-    real(dl) Trad,Tmat,Tspin,d0hi,d0lo
-    integer I
-
-    real(dl), intent(in) :: OmegaB,OmegaC, Omegan, Omegav, h0inp, yp
-    real(dl), intent(in), optional :: nnu
-    real(dl) z,n,x,x0,rhs,x_H,x_He,x_H0,x_He0,H
-    real(dl) zstart,zend,tcmb
-    real(dl) cw(24)
-    real(dl), dimension(:,:), allocatable :: w
-    real(dl) y(4)
-    real(dl) C10, tau_21Ts
-    real(dl) fnu
-    integer ind,nw
-
-    !       --- Parameter statements
-    real(dl), parameter :: tol=1.D-5                !Tolerance for R-K
-
-    real(dl) dtauda
-    external dtauda, dverk
-
-    !       ===============================================================
-
-    if (Last_OmB==OmegaB .and. Last_H0 == h0inp .and. yp == Last_YHe .and. &
-        dtauda(0.2352375823_dl) == Last_dtauda .and. last_fudge == Recomb%RECFAST_fudge &
-        .and. last_fudgeHe==Recomb%RECFAST_fudge_He) return
-    !This takes up most of the single thread time, so cache if at all possible
-    !For example if called with different reionization, or tensor rather than scalar
-
-    Last_dtauda =  dtauda(0.2352375823_dl) !Just get it at a random scale factor
-    Last_OmB = OmegaB
-    Last_H0 = h0inp
-    Last_YHe=yp
-    last_fudge = Recomb%RECFAST_FUDGE
-    last_fudgeHe = Recomb%RECFAST_FUDGE_He
-
-    if (Do21cm) doTmatTspin = .true.
-
-
-    !       write(*,*)'recfast version 1.0'
-    !       write(*,*)'Using Hummer''s case B recombination rates for H'
-    !       write(*,*)' with fudge factor = 1.14'
-    !       write(*,*)'and tabulated HeII singlet recombination rates'
-    !       write(*,*)
-
-    n_eq = 3
-    if (Evolve_Ts) n_eq=4
-    allocate(w(n_eq,9))
-
-    recombination_saha_z=0.d0
-
-    Tnow=tcmb
-    !       These are easy to inquire as input, but let's use simple values
-    z = zinitial
-    !       will output every 1 in z, but this is easily changed also
-
-    !Not general, but only for approx
-    OmegaT=OmegaC+OmegaB            !total dark matter + baryons
-    OmegaK=1.d0-OmegaT-OmegaV       !curvature
-
-
-    !       convert the Hubble constant units
-    H = H0inp/100._dl
-    HO = H*bigH
-
-
-    !       sort out the helium abundance parameters
-    mu_H = 1.d0/(1.d0-Yp)           !Mass per H atom
-    mu_T = not4/(not4-(not4-1.d0)*Yp)   !Mass per atom
-    fHe = Yp/(not4*(1.d0-Yp))       !n_He_tot / n_H_tot
-
-
-    Nnow = 3._dl*HO*HO*OmegaB/(8._dl*Pi*G*mu_H*m_H)
-
-    n = Nnow * (1._dl+z)**3
-    fnu = (21.d0/8.d0)*(4.d0/11.d0)**(4.d0/3.d0)
-    !	(this is explictly for 3 massless neutrinos - change if N_nu.ne.3; but only used for approximation so not critical)
-    z_eq = (3.d0*(HO*C)**2/(8.d0*Pi*G*a_rad*(1.d0+fnu)*Tnow**4))*(OmegaB+OmegaC)
-    z_eq = z_eq - 1.d0
-
-
-    !       Set up some constants so they don't have to be calculated later
-    Lalpha = 1.d0/L_H_alpha
-    Lalpha_He = 1.d0/L_He_2p
-    DeltaB = h_P*C*(L_H_ion-L_H_alpha)
-    CDB = DeltaB/k_B
-    DeltaB_He = h_P*C*(L_He1_ion-L_He_2s)   !2s, not 2p
-    CDB_He = DeltaB_He/k_B
-    CB1 = h_P*C*L_H_ion/k_B
-    CB1_He1 = h_P*C*L_He1_ion/k_B   !ionization for HeI
-    CB1_He2 = h_P*C*L_He2_ion/k_B   !ionization for HeII
-    CR = 2.d0*Pi*(m_e/h_P)*(k_B/h_P)
-    CK = Lalpha**3/(8.d0*Pi)
-    CK_He = Lalpha_He**3/(8.d0*Pi)
-    CL = C*h_P/(k_B*Lalpha)
-    CL_He = C*h_P/(k_B/L_He_2s) !comes from det.bal. of 2s-1s
-    CT = Compton_CT / MPC_in_sec
-
-    Bfact = h_P*C*(L_He_2p-L_He_2s)/k_B
-
-
-    !       Matter departs from radiation when t(Th) > H_frac * t(H)
-    !       choose some safely small number
-    H_frac = 1D-3
-
-    !       Fudge factor to approximate for low z out of equilibrium effect
-    fu=Recomb%RECFAST_fudge
-
-    !       Set initial matter temperature
-    y(3) = Tnow*(1._dl+z)            !Initial rad. & mat. temperature
-    Tmat = y(3)
-    y(4) = Tmat
-    Tspin = Tmat
-
-    call get_init(z,x_H0,x_He0,x0)
-
-    y(1) = x_H0
-    y(2) = x_He0
-
-    !       OK that's the initial conditions, now start writing output file
-
-
-    !       Set up work-space stuff for DVERK
-    ind  = 1
-    nw   = n_eq
-    do i = 1,24
-        cw(i) = 0._dl
-    end do
-
-    do i = 1,Nz
-        !       calculate the start and end redshift for the interval at each z
-        !       or just at each z
-        zstart = zinitial  - real(i-1,dl)*delta_z
-        zend   = zinitial  - real(i,dl)*delta_z
-
-        ! Use Saha to get x_e, using the equation for x_e for ionized helium
-        ! and for neutral helium.
-        ! Everything ionized above z=8000.  First ionization over by z=5000.
-        ! Assume He all singly ionized down to z=3500, then use He Saha until
-        ! He is 99% singly ionized, and *then* switch to joint H/He recombination.
-
-        z = zend
-
-        if (zend > 8000._dl) then
-
-            x_H0 = 1._dl
-            x_He0 = 1._dl
-            x0 = 1._dl+2._dl*fHe
-            y(1) = x_H0
-            y(2) = x_He0
-            y(3) = Tnow*(1._dl+z)
-            y(4) = y(3)
-
-        else if(z > 5000._dl)then
-
-            x_H0 = 1._dl
-            x_He0 = 1._dl
-            rhs = exp( 1.5d0 * log(CR*Tnow/(1._dl+z)) &
-                - CB1_He2/(Tnow*(1._dl+z)) ) / Nnow
-            rhs = rhs*1._dl            !ratio of g's is 1 for He++ <-> He+
-            x0 = 0.5d0 * ( sqrt( (rhs-1._dl-fHe)**2 &
-                + 4._dl*(1._dl+2._dl*fHe)*rhs) - (rhs-1._dl-fHe) )
-            y(1) = x_H0
-            y(2) = x_He0
-            y(3) = Tnow*(1._dl+z)
-            y(4) = y(3)
-
-        else if(z > 3500._dl)then
-
-            x_H0 = 1._dl
-            x_He0 = 1._dl
-            x0 = x_H0 + fHe*x_He0
-            y(1) = x_H0
-            y(2) = x_He0
-            y(3) = Tnow*(1._dl+z)
-            y(4) = y(3)
-
-        else if(y(2) > 0.99)then
-
-            x_H0 = 1._dl
-            rhs = exp( 1.5d0 * log(CR*Tnow/(1._dl+z)) &
-                - CB1_He1/(Tnow*(1._dl+z)) ) / Nnow
-            rhs = rhs*4._dl            !ratio of g's is 4 for He+ <-> He0
-            x_He0 = 0.5d0 * ( sqrt( (rhs-1._dl)**2 &
-                + 4._dl*(1._dl+fHe)*rhs )- (rhs-1._dl))
-            x0 = x_He0
-            x_He0 = (x0 - 1._dl)/fHe
-            y(1) = x_H0
-            y(2) = x_He0
-            y(3) = Tnow*(1._dl+z)
-            y(4) = y(3)
-
-        else if (y(1) > 0.99d0) then
-
-            rhs = exp( 1.5d0 * log(CR*Tnow/(1._dl+z)) &
-                - CB1/(Tnow*(1._dl+z)) ) / Nnow
-            x_H0 = 0.5d0 * (sqrt( rhs**2+4._dl*rhs ) - rhs )
-
-            call DVERK(Recomb,3,ION,zstart,y,zend,tol,ind,cw,nw,w)
-            y(1) = x_H0
-            x0 = y(1) + fHe*y(2)
-            y(4)=y(3)
-        else
-
-            call DVERK(Recomb,nw,ION,zstart,y,zend,tol,ind,cw,nw,w)
-
-            x0 = y(1) + fHe*y(2)
-
-        end if
-
-        Trad = Tnow * (1._dl+zend)
-        Tmat = y(3)
-        x_H = y(1)
-        x_He = y(2)
-        x = x0
-
-        zrec(i)=zend
-        xrec(i)=x
-
-
-        if (doTmatTspin) then
-            if (Evolve_Ts .and. zend< 1/Do21cm_minev-1 ) then
-                Tspin = y(4)
+            if (z.le.Calc%zrec(nz)) then
+                TRecfast_ts=Calc%tsrec(nz)
             else
-                C10 = Nnow * (1._dl+zend)**3*(kappa_HH_21cm(Tmat,.false.)*(1-x_H) + kappa_eH_21cm(Tmat,.false.)*x)
-                tau_21Ts = line21_const*NNow*(1+zend)*dtauda(1/(1+zend))/1000
+                zst=(zinitial-z)/delta_z
+                ihi= int(zst)
+                ilo = ihi+1
+                az=zst - ihi
+                bz=1-az
 
-                Tspin = Trad*( C10/Trad + A10/T_21cm)/(C10/Tmat + A10/T_21cm) + &
-                    tau_21Ts/2*A10*( 1/(C10*T_21cm/Tmat+A10) -  1/(C10*T_21cm/Trad+A10) )
+                TRecfast_ts=az*Calc%tsrec(ilo)+bz*Calc%tsrec(ihi)+ &
+                    ((az**3-az)*Calc%dtsrec(ilo)+(bz**3-bz)*Calc%dtsrec(ihi))/6._dl
+            endif
+        endif
+    end associate
+    end function TRecfast_ts
 
-                y(4) = Tspin
+    function TRecfast_xe(this,a)
+    class(TRecfast) :: this
+    real(dl), intent(in) :: a
+    real(dl) zst,z,az,bz,TRecfast_xe
+    integer ilo,ihi
+
+    z=1/a-1
+    associate(Calc => this%Calc)
+        if (z.ge.Calc%zrec(1)) then
+            TRecfast_xe=Calc%xrec(1)
+        else
+            if (z.le.Calc%zrec(nz)) then
+                TRecfast_xe=Calc%xrec(nz)
+            else
+                zst=(zinitial-z)/delta_z
+                ihi= int(zst)
+                ilo = ihi+1
+                az=zst - ihi
+                bz=1-az
+                TRecfast_xe=az*Calc%xrec(ilo)+bz*Calc%xrec(ihi)+ &
+                    ((az**3-az)*Calc%dxrec(ilo)+(bz**3-bz)*Calc%dxrec(ihi))/6._dl
+            endif
+        endif
+    end associate
+    end function TRecfast_xe
+
+    subroutine TRecfast_xe_Tm(this,a, xe, Tm)
+    class(TRecfast) :: this
+    real(dl), intent(in) :: a
+    real(dl), intent(out) :: xe, Tm
+    real(dl) zst,z,az,bz
+    integer ilo,ihi
+
+    z=1/a-1
+    associate(Calc => this%Calc)
+        if (z.ge.Calc%zrec(1)) then
+            xe=Calc%xrec(1)
+            Tm = Calc%Tnow/a
+        else
+            if (z.le.Calc%zrec(nz)) then
+                xe=Calc%xrec(nz)
+                TM =  Calc%Tmrec(nz)
+            else
+                zst=(zinitial-z)/delta_z
+                ihi= int(zst)
+                ilo = ihi+1
+                az=zst - ihi
+                bz=1-az
+                xe=az*Calc%xrec(ilo)+bz*Calc%xrec(ihi)+ &
+                    ((az**3-az)*Calc%dxrec(ilo)+(bz**3-bz)*Calc%dxrec(ihi))/6._dl
+                Tm=az*Calc%Tmrec(ilo)+bz*Calc%Tmrec(ihi)+ &
+                    ((az**3-az)*Calc%dTmrec(ilo)+(bz**3-bz)*Calc%dTmrec(ihi))/6._dl
+
+            endif
+        endif
+    end associate
+    end subroutine TRecfast_xe_Tm
+
+    function TRecfast_version(this) result(version)
+    class(TRecfast) :: this
+    character(LEN=:), allocatable :: version
+
+    version = Recfast_Version
+
+    end function TRecfast_version
+
+    subroutine TRecfast_init(this,State, WantTSpin)
+    use MiscUtils
+    implicit none
+    class(TRecfast), target :: this
+    class(TCAMBdata), target :: State
+    real(dl) :: Trad,Tmat,Tspin,d0hi,d0lo
+    integer :: I
+    Type(RecombinationData), pointer :: Calc
+    logical, intent(in), optional :: WantTSpin
+    real(dl) :: z,n,x,x0,rhs,x_H,x_He,x_H0,x_He0,H, Yp
+    real(dl) :: zstart,zend
+    real(dl) :: cw(24)
+    real(dl), dimension(:,:), allocatable :: w
+    real(dl) :: y(4)
+    real(dl) :: C10, tau_21Ts
+    integer :: ind, nw
+    real(dl), parameter :: tol=1.D-5                !Tolerance for R-K
+    interface
+    subroutine TDverk (this,n, fcn, x, y, xend, tol, ind, c, nw, w)
+    use Precision
+    import
+    class(TRecfast), target :: this
+    integer n, ind
+    real(dl) x, y(n), xend, tol, c(*), w(nw,9)
+    external fcn
+    end subroutine
+    end interface
+    procedure(TDverk) :: dverk
+
+
+    if (.not. allocated(this%Calc)) allocate(this%Calc)
+    Calc => this%Calc
+
+    select type(State)
+    class is (CAMBdata)
+        Calc%State => State
+        Calc%doTspin = DefaultFalse(WantTSpin)
+
+
+        !       write(*,*)'recfast version 1.0'
+        !       write(*,*)'Using Hummer''s case B recombination rates for H'
+        !       write(*,*)' with fudge factor = 1.14'
+        !       write(*,*)'and tabulated HeII singlet recombination rates'
+        !       write(*,*)
+
+        Calc%n_eq = 3
+        if (Evolve_Ts) Calc%n_eq=4
+        allocate(w(Calc%n_eq,9))
+
+        Calc%Recombination_saha_z=0.d0
+
+        Calc%Tnow=State%CP%tcmb
+        !       These are easy to inquire as input, but let's use simple values
+        z = zinitial
+        !       will output every 1 in z, but this is easily changed also
+
+        H = State%CP%H0/100._dl
+
+        !Not general, but only for approx
+        Calc%OmegaT=(State%CP%omch2+State%CP%ombh2)/H**2        !total dark matter + baryons
+        Calc%OmegaK=State%CP%omk       !curvature
+
+
+        !       convert the Hubble constant units
+        Calc%HO = H*bigH
+        Yp = State%CP%Yhe
+
+        !       sort out the helium abundance parameters
+        Calc%mu_H = 1.d0/(1.d0-Yp)           !Mass per H atom
+        Calc%mu_T = not4/(not4-(not4-1.d0)*Yp)   !Mass per atom
+        Calc%fHe = Yp/(not4*(1.d0-Yp))       !n_He_tot / n_H_tot
+
+
+        Calc%Nnow = 3._dl*bigH**2*State%CP%ombh2/(const_eightpi*G*Calc%mu_H*m_H)
+
+        n = Calc%Nnow * (1._dl+z)**3
+        Calc%z_eq = State%z_eq
+
+        !       Fudge factor to approximate for low z out of equilibrium effect
+        Calc%fu=this%RECFAST_fudge
+
+        !       Set initial matter temperature
+        y(3) = Calc%Tnow*(1._dl+z)            !Initial rad. & mat. temperature
+        Tmat = y(3)
+        y(4) = Tmat
+        Tspin = Tmat
+
+        call get_init(Calc,z,x_H0,x_He0,x0)
+
+        y(1) = x_H0
+        y(2) = x_He0
+
+        !       OK that's the initial conditions, now start writing output file
+
+        !       Set up work-space stuff for DVERK
+        ind  = 1
+        nw   = Calc%n_eq
+        do i = 1,24
+            cw(i) = 0._dl
+        end do
+
+        do i = 1,Nz
+            !       calculate the start and end redshift for the interval at each z
+            !       or just at each z
+            zstart = zinitial  - real(i-1,dl)*delta_z
+            zend   = zinitial  - real(i,dl)*delta_z
+
+            ! Use Saha to get x_e, using the equation for x_e for ionized helium
+            ! and for neutral helium.
+            ! Everything ionized above z=8000.  First ionization over by z=5000.
+            ! Assume He all singly ionized down to z=3500, then use He Saha until
+            ! He is 99% singly ionized, and *then* switch to joint H/He recombination.
+
+            z = zend
+
+            if (zend > 8000._dl) then
+
+                x_H0 = 1._dl
+                x_He0 = 1._dl
+                x0 = 1._dl+2._dl*Calc%fHe
+                y(1) = x_H0
+                y(2) = x_He0
+                y(3) = Calc%Tnow*(1._dl+z)
+                y(4) = y(3)
+
+            else if(z > 5000._dl)then
+
+                x_H0 = 1._dl
+                x_He0 = 1._dl
+                rhs = exp( 1.5d0 * log(CR*Calc%Tnow/(1._dl+z)) &
+                    - CB1_He2/(Calc%Tnow*(1._dl+z)) ) / Calc%Nnow
+                rhs = rhs*1._dl            !ratio of g's is 1 for He++ <-> He+
+                x0 = 0.5d0 * ( sqrt( (rhs-1._dl-Calc%fHe)**2 &
+                    + 4._dl*(1._dl+2._dl*Calc%fHe)*rhs) - (rhs-1._dl-Calc%fHe) )
+                y(1) = x_H0
+                y(2) = x_He0
+                y(3) = Calc%Tnow*(1._dl+z)
+                y(4) = y(3)
+
+            else if(z > 3500._dl)then
+
+                x_H0 = 1._dl
+                x_He0 = 1._dl
+                x0 = x_H0 + Calc%fHe*x_He0
+                y(1) = x_H0
+                y(2) = x_He0
+                y(3) = Calc%Tnow*(1._dl+z)
+                y(4) = y(3)
+
+            else if(y(2) > 0.99)then
+
+                x_H0 = 1._dl
+                rhs = exp( 1.5d0 * log(CR*Calc%Tnow/(1._dl+z)) &
+                    - CB1_He1/(Calc%Tnow*(1._dl+z)) ) / Calc%Nnow
+                rhs = rhs*4._dl            !ratio of g's is 4 for He+ <-> He0
+                x_He0 = 0.5d0 * ( sqrt( (rhs-1._dl)**2 &
+                    + 4._dl*(1._dl+Calc%fHe)*rhs )- (rhs-1._dl))
+                x0 = x_He0
+                x_He0 = (x0 - 1._dl)/Calc%fHe
+                y(1) = x_H0
+                y(2) = x_He0
+                y(3) = Calc%Tnow*(1._dl+z)
+                y(4) = y(3)
+
+            else if (y(1) > 0.99d0) then
+
+                rhs = exp( 1.5d0 * log(CR*Calc%Tnow/(1._dl+z)) &
+                    - CB1/(Calc%Tnow*(1._dl+z)) ) / Calc%Nnow
+                x_H0 = 0.5d0 * (sqrt( rhs**2+4._dl*rhs ) - rhs )
+
+                call DVERK(this,3,ION,zstart,y,zend,tol,ind,cw,nw,w)
+                y(1) = x_H0
+                x0 = y(1) + Calc%fHe*y(2)
+                y(4)=y(3)
+            else
+
+                call DVERK(this,nw,ION,zstart,y,zend,tol,ind,cw,nw,w)
+
+                x0 = y(1) + Calc%fHe*y(2)
+
             end if
 
-            tsrec(i) = Tspin
-            tmrec(i) = Tmat
+            Trad = Calc%Tnow * (1._dl+zend)
+            Tmat = y(3)
+            x_H = y(1)
+            x_He = y(2)
+            x = x0
 
+            Calc%zrec(i)=zend
+            Calc%xrec(i)=x
+            Calc%tmrec(i) = Tmat
+
+
+            if (Calc%doTspin) then
+                if (Evolve_Ts .and. zend< 1/Do21cm_minev-1 ) then
+                    Tspin = y(4)
+                else
+                    C10 = Calc%Nnow * (1._dl+zend)**3*(kappa_HH_21cm(Tmat,.false.)*(1-x_H) &
+                        + kappa_eH_21cm(Tmat,.false.)*x)
+                    tau_21Ts = line21_const*Calc%NNow*(1+zend)*dtauda(State,1/(1+zend))/1000
+
+                    Tspin = Trad*( C10/Trad + A10/T_21cm)/(C10/Tmat + A10/T_21cm) + &
+                        tau_21Ts/2*A10*( 1/(C10*T_21cm/Tmat+A10) -  1/(C10*T_21cm/Trad+A10) )
+
+                    y(4) = Tspin
+                end if
+
+                Calc%tsrec(i) = Tspin
+
+            end if
+
+            !          write (*,'(5E15.5)') zend, Trad, Tmat, Tspin, x
+        end do
+
+        d0hi=1.0d40
+        d0lo=1.0d40
+        call spline(Calc%zrec,Calc%xrec,nz,d0lo,d0hi,Calc%dxrec)
+        call spline(Calc%zrec,Calc%tmrec,nz,d0lo,d0hi,Calc%dtmrec)
+        if (Calc%doTspin) then
+            call spline(Calc%zrec,Calc%tsrec,nz,d0lo,d0hi,Calc%dtsrec)
         end if
+        class default
+        call MpiStop('Wrong state type')
+    end select
 
-        !          write (*,'(5E15.5)') zend, Trad, Tmat, Tspin, x
-
-    end do
-
-    d0hi=1.0d40
-    d0lo=1.0d40
-    call spline(zrec,xrec,nz,d0lo,d0hi,dxrec)
-    if (doTmatTspin) then
-        call spline(zrec,tsrec,nz,d0lo,d0hi,dtsrec)
-        call spline(zrec,tmrec,nz,d0lo,d0hi,dtmrec)
-    end if
-    deallocate(w)
-
-    end subroutine Recombination_init
+    end subroutine TRecfast_init
 
     !       ===============================================================
-    subroutine GET_INIT(z,x_H0,x_He0,x0)
+    subroutine GET_INIT(Calc,z,x_H0,x_He0,x0)
 
     !       Set up the initial conditions so it will work for general,
     !       but not pathological choices of zstart
     !       Initial ionization fraction using Saha for relevant species
-    use RECDATA
-    implicit none
-
-
+    Type(RecombinationData) :: Calc
     real(dl) z,x0,rhs,x_H0,x_He0
-
 
     if(z > 8000._dl)then
 
         x_H0 = 1._dl
         x_He0 = 1._dl
-        x0 = 1._dl+2._dl*fHe
+        x0 = 1._dl+2._dl*Calc%fHe
 
     else if(z > 3500._dl)then
 
         x_H0 = 1._dl
         x_He0 = 1._dl
-        rhs = exp( 1.5d0 * log(CR*Tnow/(1._dl+z)) &
-            - CB1_He2/(Tnow*(1._dl+z)) ) / Nnow
+        rhs = exp( 1.5d0 * log(CR*Calc%Tnow/(1._dl+z)) &
+            - CB1_He2/(Calc%Tnow*(1._dl+z)) ) / Calc%Nnow
         rhs = rhs*1._dl    !ratio of g's is 1 for He++ <-> He+
-        x0 = 0.5d0 * ( sqrt( (rhs-1._dl-fHe)**2 &
-            + 4._dl*(1._dl+2._dl*fHe)*rhs) - (rhs-1._dl-fHe) )
+        x0 = 0.5d0 * ( sqrt( (rhs-1._dl-Calc%fHe)**2 &
+            + 4._dl*(1._dl+2._dl*Calc%fHe)*rhs) - (rhs-1._dl-Calc%fHe) )
 
     else if(z > 2000._dl)then
 
         x_H0 = 1._dl
-        rhs = exp( 1.5d0 * log(CR*Tnow/(1._dl+z)) &
-            - CB1_He1/(Tnow*(1._dl+z)) ) / Nnow
+        rhs = exp( 1.5d0 * log(CR*Calc%Tnow/(1._dl+z)) &
+            - CB1_He1/(Calc%Tnow*(1._dl+z)) ) / Calc%Nnow
         rhs = rhs*4._dl    !ratio of g's is 4 for He+ <-> He0
-        x_He0 = 0.5d0  * ( sqrt( (rhs-1._dl)**2 + 4._dl*(1._dl+fHe)*rhs )- (rhs-1._dl))
+        x_He0 = 0.5d0  * ( sqrt( (rhs-1._dl)**2 + 4._dl*(1._dl+Calc%fHe)*rhs )- (rhs-1._dl))
         x0 = x_He0
-        x_He0 = (x0 - 1._dl)/fHe
+        x_He0 = (x0 - 1._dl)/Calc%fHe
 
     else
 
-        rhs = exp( 1.5d0 * log(CR*Tnow/(1._dl+z)) &
-            - CB1/(Tnow*(1._dl+z)) ) / Nnow
+        rhs = exp( 1.5d0 * log(CR*Calc%Tnow/(1._dl+z)) &
+            - CB1/(Calc%Tnow*(1._dl+z)) ) / Calc%Nnow
         x_H0 = 0.5d0 * (sqrt( rhs**2+4._dl*rhs ) - rhs )
         x_He0 = 0._dl
         x0 = x_H0
-
     end if
-
 
     end subroutine GET_INIT
 
-
-
-    subroutine ION(Recomb,Ndim,z,Y,f)
-    use RECDATA
-    implicit none
-
+    subroutine ION(this,Ndim,z,Y,f)
+    class(TRecfast), target :: this
     integer Ndim
-    Type (RecombinationParams) :: Recomb
 
     real(dl) z,x,n,n_He,Trad,Tmat,Tspin,x_H,x_He, Hz
     real(dl) y(Ndim),f(Ndim)
@@ -793,9 +784,10 @@
     real(dl) tauHe_t,pHe_t,CL_PSt,CfHe_t,gamma_2Pt
     real(dl) epsilon
     integer Heflag
-    real(dl) dtauda
     real(dl) C10, dHdz
-    external dtauda
+    type(RecombinationData), pointer :: Recomb
+
+    Recomb => this%Calc
 
     !       the Pequignot, Petitjean & Boisson fitting parameters for Hydrogen
     a_PPB = 4.309d0
@@ -817,15 +809,15 @@
 
     x_H = y(1)
     x_He = y(2)
-    x = x_H + fHe * x_He
+    x = x_H + Recomb%fHe * x_He
     Tmat = y(3)
     !        Tspin = y(4)
 
-    n = Nnow * (1._dl+z)**3
-    n_He = fHe * Nnow * (1._dl+z)**3
-    Trad = Tnow * (1._dl+z)
+    n = Recomb%Nnow * (1._dl+z)**3
+    n_He = Recomb%fHe * Recomb%Nnow * (1._dl+z)**3
+    Trad = Recomb%Tnow * (1._dl+z)
 
-    Hz = 1/dtauda(1/(1._dl+z))*(1._dl+z)**2/MPC_in_sec
+    Hz = 1/dtauda(Recomb%State,1/(1._dl+z))*(1._dl+z)**2/MPC_in_sec
 
 
     !       Get the radiative rates using PPQ fit, identical to Hummer's table
@@ -848,14 +840,14 @@
     else
         He_Boltz = exp(Bfact/Tmat)
     end if
-    !	now deal with H and its fudges
-    if (.not. Recomb%RECFAST_Hswitch) then
+    !   now deal with H and its fudges
+    if (.not. this%RECFAST_Hswitch) then
         K = CK/Hz !Peebles coefficient K=lambda_a^3/8piH
     else
-        !c	fit a double Gaussian correction function
+        !c  fit a double Gaussian correction function
         K = CK/Hz*(1.0d0 &
-            +AGauss1*exp(-((log(1.0d0+z)-zGauss1)/wGauss1)**2.d0) &
-            +AGauss2*exp(-((log(1.0d0+z)-zGauss2)/wGauss2)**2.d0))
+            +this%AGauss1*exp(-((log(1.0d0+z)-this%zGauss1)/this%wGauss1)**2.d0) &
+            +this%AGauss2*exp(-((log(1.0d0+z)-this%zGauss2)/this%wGauss2)**2.d0))
     end if
 
 
@@ -870,7 +862,7 @@
     if ((x_He.lt.5.d-9) .or. (x_He.gt.0.98d0)) then
         Heflag = 0
     else
-        Heflag = Recomb%RECFAST_Heswitch
+        Heflag = this%RECFAST_Heswitch
     end if
     if (Heflag.eq.0)then        !use Peebles coeff. for He
         K_He = CK_He/Hz
@@ -886,18 +878,18 @@
             !   first get the Doppler width parameter
             Doppler = 2.D0*k_B*Tmat/(m_H*not4*C*C)
             Doppler = C*L_He_2p*dsqrt(Doppler)
-            gamma_2Ps = 3.d0*A2P_s*fHe*(1.d0-x_He)*C*C &
-                /(dsqrt(Pi)*sigma_He_2Ps*8.d0*Pi*Doppler*(1.d0-x_H)) &
+            gamma_2Ps = 3.d0*A2P_s*Recomb%fHe*(1.d0-x_He)*C*C &
+                /(dsqrt(const_pi)*sigma_He_2Ps*const_eightpi*Doppler*(1.d0-x_H)) &
                 /((C*L_He_2p)**2.d0)
             pb = 0.36d0  !value from KIV (2007)
-            qb = Recomb%RECFAST_fudge_He
+            qb = this%RECFAST_fudge_He
             !   calculate AHcon, the value of A*p_(con,H) for H continuum opacity
             AHcon = A2P_s/(1.d0+pb*(gamma_2Ps**qb))
             K_He=1.d0/((A2P_s*pHe_s+AHcon)*3.d0*n_He*(1.d0-x_He))
         end if
         if (Heflag.ge.3) then     !include triplet effects
             tauHe_t = A2P_t*n_He*(1.d0-x_He)*3.d0
-            tauHe_t = tauHe_t /(8.d0*Pi*Hz*L_He_2Pt**(3.d0))
+            tauHe_t = tauHe_t /(const_eightpi*Hz*L_He_2Pt**(3.d0))
             pHe_t = (1.d0 - dexp(-tauHe_t))/tauHe_t
             CL_PSt = h_P*C*(L_He_2Pt - L_He_2st)/k_B
             if ((Heflag.eq.3) .or. (Heflag.eq.5).or.(x_H.gt.0.99999d0)) then !Recfast 1.4.2 (?)
@@ -907,8 +899,8 @@
             else                  !include H cont. effect
                 Doppler = 2.d0*k_B*Tmat/(m_H*not4*C*C)
                 Doppler = C*L_He_2Pt*dsqrt(Doppler)
-                gamma_2Pt = 3.d0*A2P_t*fHe*(1.d0-x_He)*C*C &
-                    /(dsqrt(Pi)*sigma_He_2Pt*8.d0*Pi*Doppler*(1.d0-x_H)) &
+                gamma_2Pt = 3.d0*A2P_t*Recomb%fHe*(1.d0-x_He)*C*C &
+                    /(dsqrt(const_pi)*sigma_He_2Pt*const_eightpi*Doppler*(1.d0-x_H)) &
                     /((C*L_He_2Pt)**2.d0)
                 !   use the fitting parameters from KIV (2007) in this case
                 pb = 0.66d0
@@ -922,8 +914,8 @@
 
 
     !       Estimates of Thomson scattering time and Hubble time
-    timeTh=(1._dl/(CT*Trad**4))*(1._dl+x+fHe)/x       !Thomson time
-    timeH=2./(3.*HO*(1._dl+z)**1.5)      !Hubble time
+    timeTh=(1._dl/(CT*Trad**4))*(1._dl+x+Recomb%fHe)/x       !Thomson time
+    timeH=2./(3.*Recomb%HO*(1._dl+z)**1.5)      !Hubble time
 
     !       calculate the derivatives
     !       turn on H only for x_H<0.99, and use Saha derivative for 0.98<x_H<0.99
@@ -933,7 +925,7 @@
         !!        else if (x_H > 0.98_dl) then
     else if (x_H.gt.0.985d0) then     !use Saha rate for Hydrogen
         f(1) = (x*x_H*n*Rdown - Rup*(1.d0-x_H)*dexp(-CL/Tmat)) /(Hz*(1.d0+z))
-        recombination_saha_z = z
+        Recomb%Recombination_saha_z = z
         !AL: following commented as not used
         !   for interest, calculate the correction factor compared to Saha
         !   (without the fudge)
@@ -944,7 +936,7 @@
 
         f(1) = ((x*x_H*n*Rdown - Rup*(1.d0-x_H)*exp(-CL/Tmat)) &
             *(1.d0 + K*Lambda*n*(1.d0-x_H))) &
-            /(Hz*(1.d0+z)*(1.d0/fu+K*Lambda*n*(1.d0-x_H)/fu &
+            /(Hz*(1.d0+z)*(1.d0/Recomb%fu+K*Lambda*n*(1.d0-x_H)/Recomb%fu &
             +K*Rup*n*(1.d0-x_H)))
 
     end if
@@ -971,28 +963,26 @@
 
     if (timeTh < H_frac*timeH) then
         !                f(3)=Tmat/(1._dl+z)      !Tmat follows Trad
-        !	additional term to smooth transition to Tmat evolution,
-        !	(suggested by Adam Moss)
-        dHdz = (HO**2/2.d0/Hz)*(4.d0*(1.d0+z)**3/(1.d0+z_eq)*OmegaT &
-            + 3.d0*OmegaT*(1.d0+z)**2 + 2.d0*OmegaK*(1.d0+z) )
+        !   additional term to smooth transition to Tmat evolution,
+        !   (suggested by Adam Moss)
+        dHdz = (Recomb%HO**2/2.d0/Hz)*(4.d0*(1.d0+z)**3/(1.d0+Recomb%z_eq)*Recomb%OmegaT &
+            + 3.d0*Recomb%OmegaT*(1.d0+z)**2 + 2.d0*Recomb%OmegaK*(1.d0+z) )
 
-        epsilon = Hz*(1.d0+x+fHe)/(CT*Trad**3*x)
-        f(3) = Tnow &
-            + epsilon*((1.d0+fHe)/(1.d0+fHe+x))*((f(1)+fHe*f(2))/x) &
+        epsilon = Hz*(1.d0+x+Recomb%fHe)/(CT*Trad**3*x)
+        f(3) = Recomb%Tnow &
+            + epsilon*((1.d0+Recomb%fHe)/(1.d0+Recomb%fHe+x))*((f(1)+Recomb%fHe*f(2))/x) &
             - epsilon* dHdz/Hz + 3.0d0*epsilon/(1.d0+z)
 
     else
-        f(3)= CT * (Trad**4) * x / (1._dl+x+fHe) &
+        f(3)= CT * (Trad**4) * x / (1._dl+x+Recomb%fHe) &
             * (Tmat-Trad) / (Hz*(1._dl+z)) + 2._dl*Tmat/(1._dl+z)
     end if
 
-    ! print *, z, f(3)*(1+z)/Tmat
-
-    if (Do21cm .and. evolve_Ts) then
+    if (evolve_Ts) then
 
         !       follow the matter temperature once it has a chance of diverging
         if (timeTh < H_frac*timeH) then
-            f(4) = Tnow !spin follows Trad and Tmat
+            f(4) = Recomb%Tnow !spin follows Trad and Tmat
         else
             if (z< 1/Do21cm_minev-1) then
 
@@ -1010,293 +1000,88 @@
     end subroutine ION
 
 
-
-    function dDeltaxe_dtau(a, Delta_xe,Delta_nH, Delta_Tm, hdot, kvb)
+    function TRecfast_dDeltaxe_dtau(this,a, Delta_xe,Delta_nH, Delta_Tm, hdot, kvb,adotoa)
     !d x_e/d tau assuming Helium all neutral and temperature perturbations negligible
     !it is not accurate for x_e of order 1
-    use RECDATA
-    implicit none
-    real(dl) dDeltaxe_dtau
-    real(dl), intent(in):: a, Delta_xe,Delta_nH, Delta_Tm, hdot, kvb
+    class(TRecfast) :: this
+    real(dl) TRecfast_dDeltaxe_dtau
+    real(dl), intent(in):: a, Delta_xe,Delta_nH, Delta_Tm, hdot, kvb,adotoa
     real(dl) Delta_Tg
     real(dl) xedot,z,x,n,n_He,Trad,Tmat,x_H,Hz, C_r, dlnC_r
     real(dl) Rup,Rdown,K
     real(dl) a_PPB,b_PPB,c_PPB,d_PPB
     real(dl) delta_alpha, delta_beta, delta_K, clh
-    real(dl) dtauda
-    external dtauda
+    real(dl) xe
+
+    associate(Calc=>this%Calc)
+        Delta_tg =Delta_Tm
+        call this%xe_Tm(a, xe, Tmat)
+        x_H = min(1._dl,xe)
+
+        !       the Pequignot, Petitjean & Boisson fitting parameters for Hydrogen
+        a_PPB = 4.309d0
+        b_PPB = -0.6166d0
+        c_PPB = 0.6703d0
+        d_PPB = 0.5300d0
+
+        z=1/a-1
+
+        x = x_H
+
+        n = Calc%Nnow /a**3
+        n_He = Calc%fHe * n
+        Trad = Calc%Tnow /a
+        clh = adotoa !conformal time Hubble
+        Hz = clh/a/MPC_in_sec !normal time in seconds
+
+        !       Get the radiative rates using PPQ fit, identical to Hummer's table
+
+        Rdown=1.d-19*a_PPB*(Tmat/1.d4)**b_PPB &
+            /(1._dl+c_PPB*(Tmat/1.d4)**d_PPB)   !alpha
+        Rup = Rdown * (CR*Tmat)**(1.5d0)*exp(-CDB/Tmat)
+
+        K = CK/Hz              !Peebles coefficient K=lambda_a^3/8piH
 
 
-    Delta_tg =Delta_Tm
-    x_H = min(1._dl,Recombination_xe(a))
+        Rdown = Rdown*Calc%fu
+        Rup = Rup*Calc%fu
+        C_r =  a*(1.d0 + K*Lambda*n*(1.d0-x_H)) /( 1.d0+K*(Lambda+Rup)*n*(1.d0-x_H) )*MPC_in_sec
 
-    !       the Pequignot, Petitjean & Boisson fitting parameters for Hydrogen
-    a_PPB = 4.309d0
-    b_PPB = -0.6166d0
-    c_PPB = 0.6703d0
-    d_PPB = 0.5300d0
+        xedot = -(x*x_H*n*Rdown - Rup*(1.d0-x_H)*exp(-CL/Tmat))*C_r
 
-    z=1/a-1
-
-    x = x_H
-
-    n = Nnow /a**3
-    n_He = fHe * n
-    Trad = Tnow /a
-    clh = 1/dtauda(a)/a !conformal time
-    Hz = clh/a/MPC_in_sec !normal time in seconds
-
-    Tmat = Recombination_tm(a)
-
-    !       Get the radiative rates using PPQ fit, identical to Hummer's table
-
-    Rdown=1.d-19*a_PPB*(Tmat/1.d4)**b_PPB &
-        /(1._dl+c_PPB*(Tmat/1.d4)**d_PPB)   !alpha
-    Rup = Rdown * (CR*Tmat)**(1.5d0)*exp(-CDB/Tmat)
-
-    K = CK/Hz              !Peebles coefficient K=lambda_a^3/8piH
+        delta_alpha = (b_PPB + c_PPB*(Tmat/1d4)**d_PPB*(b_PPB-d_PPB))/(1+c_PPB*(Tmat/1d4)**d_PPB)*Delta_Tg
+        delta_beta = delta_alpha + (3./2 + CDB/Tmat)*delta_Tg !(Rup = beta)
+        delta_K = - hdot/clh - kvb/clh/3
 
 
-    Rdown = Rdown*fu
-    Rup = Rup*fu
-    C_r =  a*(1.d0 + K*Lambda*n*(1.d0-x_H)) /( 1.d0+K*(Lambda+Rup)*n*(1.d0-x_H) )*MPC_in_sec
+        dlnC_r = -Rup*K*n*( (Delta_nH+Delta_K + Delta_beta*(1+K*Lambda*n*(1-x_H)))*(1-x_H) - x_H*Delta_xe) &
+            / ( 1.d0+K*(Lambda+Rup)*n*(1.d0-x_H) ) /(1.d0 + K*Lambda*n*(1.d0-x_H))
 
-    xedot = -(x*x_H*n*Rdown - Rup*(1.d0-x_H)*exp(-CL/Tmat))*C_r
-
-    delta_alpha = (b_PPB + c_PPB*(Tmat/1d4)**d_PPB*(b_PPB-d_PPB))/(1+c_PPB*(Tmat/1d4)**d_PPB)*Delta_Tg
-    delta_beta = delta_alpha + (3./2 + CDB/Tmat)*delta_Tg !(Rup = beta)
-    delta_K = - hdot/clh - kvb/clh/3
-
-
-    dlnC_r = -Rup*K*n*( (Delta_nH+Delta_K + Delta_beta*(1+K*Lambda*n*(1-x_H)))*(1-x_H) - x_H*Delta_xe) &
-        / ( 1.d0+K*(Lambda+Rup)*n*(1.d0-x_H) ) /(1.d0 + K*Lambda*n*(1.d0-x_H))
-
-    dDeltaxe_dtau= xedot/x_H*(dlnC_r +Delta_alpha - Delta_xe) &
-        - C_r*( (2*Delta_xe + Delta_nH)*x_H*n*Rdown + (Delta_xe - (3./2+ CB1/Tmat)*(1/x_H-1)*Delta_Tg)*Rup*exp(-CL/Tmat))
-
+        TRecfast_dDeltaxe_dtau= xedot/x_H*(dlnC_r +Delta_alpha - Delta_xe) &
+            - C_r*( (2*Delta_xe + Delta_nH)*x_H*n*Rdown + (Delta_xe - (3./2+ CB1/Tmat)*(1/x_H-1)*Delta_Tg)*Rup*exp(-CL/Tmat))
+    end associate
 
     !Approximate form valid at late times
     !        dDeltaxe_dtau= xedot/x_H*(Delta_alpha + Delta_xe + Delta_nH)
 
 
-    end function dDeltaxe_dtau
+    end function TRecfast_dDeltaxe_dtau
 
-    !  ===============================================================
-
-
-    function polevl(x,coef,N)
-    implicit none
-    integer N
-    real(dl) polevl
-    real(dl) x,ans
-    real(dl) coef(N+1)
-
-    integer i
-
-    ans=coef(1)
-    do i=2,N+1
-        ans=ans*x+coef(i)
-    end do
-    polevl=ans
-
-    end function polevl
+    real(dl) function TRecfast_Get_Saha_z(this)
+    class(TRecfast) :: this
+    TRecfast_Get_Saha_z =  this%Calc%recombination_saha_z
+    end function
 
 
-    function derivpolevl(x,coef,N)
-    implicit none
-    integer N
-    real(dl) derivpolevl
-    real(dl) x,ans
-    real(dl) coef(N+1)
-    integer i
+    subroutine TRecfast_SelfPointer(cptr,P)
+    use iso_c_binding
+    Type(c_ptr) :: cptr
+    Type (TRecfast), pointer :: PType
+    class (TPythonInterfacedClass), pointer :: P
 
-    ans=coef(1)*N
-    do i=2,N
-        ans=ans*x+coef(i)*(N-i+1)
-    end do
-    derivpolevl=ans
+    call c_f_pointer(cptr, PType)
+    P => PType
 
-    end function derivpolevl
-
-
-    function kappa_HH_21cm(T, deriv)
-    !Polynomail fit to Hydrogen-Hydrogen collision rate as function of Tmatter, from astro-ph/0608032
-    !if deriv return d log kappa / d log T
-    real(dl), intent(in) :: T
-    logical, intent(in) :: deriv
-    !        real(dl), dimension(8), parameter :: fit = &
-    !         (/ 0.00120402_dl, -0.0322247_dl,0.339581_dl, -1.75094_dl,4.3528_dl,-4.03562_dl, 1.26899_dl, -29.6113_dl /)
-    integer, parameter :: n_table = 27
-    integer, dimension(n_table), parameter :: Temps = &
-        (/ 1, 2, 4, 6,8,10,15,20,25,30,40,50,60,70,80,90,100,200,300,500,700,1000,2000,3000,5000,7000,10000/)
-    real, dimension(n_table), parameter :: rates = &
-        (/ 1.38e-13, 1.43e-13,2.71e-13, 6.60e-13,1.47e-12,2.88e-12,9.10e-12,1.78e-11,2.73e-11,&
-        3.67e-11,5.38e-11,6.86e-11,8.14e-11,9.25e-11, &
-        1.02e-10,1.11e-10,1.19e-10,1.75e-10,2.09e-10,2.56e-10,2.91e-10,3.31e-10,4.27e-10,&
-        4.97e-10,6.03e-10,6.87e-10,7.87e-10/)
-
-    real(dl) kappa_HH_21cm, logT, logRate
-    real(dl), save, dimension(:), allocatable :: logRates, logTemps, ddlogRates
-    integer xlo, xhi
-    real(dl) :: a0, b0, ho
-
-    if (.not. allocated(logRates)) then
-
-        allocate(logRates(n_table),logTemps(n_table),ddlogRates(n_table))
-        logRates = log(real(rates,dl)*0.01**3)
-        logTemps = log(real(Temps,dl))
-        call spline(logTemps,logRates,n_table,1d30,1d30,ddlogRates)
-    end if
-
-    if (T<=Temps(1)) then
-        if (deriv) then
-            kappa_HH_21cm = 0
-        else
-            kappa_HH_21cm = rates(1)*0.01**3
-        end if
-        return
-    elseif (T >=Temps(n_table)) then
-        if (deriv) then
-            kappa_HH_21cm = 0
-        else
-            kappa_HH_21cm = rates(n_table)*0.01**3
-        end if
-        return
-    end if
-
-    logT = log(T)
-    xlo=0
-    do xhi=2, n_table
-        if (logT < logTemps(xhi)) then
-            xlo = xhi-1
-            exit
-        end  if
-    end do
-    xhi = xlo+1
-
-    ho=logTemps(xhi)-logTemps(xlo)
-    a0=(logTemps(xhi)-logT)/ho
-    b0=1-a0
-
-    if (deriv) then
-        kappa_HH_21cm  = (logRates(xhi) - logRates(xlo))/ho + &
-            ( ddlogRates(xhi)*(3*b0**2-1) - ddlogRates(xlo)*(3*a0**2-1))*ho/6
-        !          kappa_HH_21cm = derivpolevl(logT,fit,7)
-    else
-        logRate = a0*logRates(xlo)+ b0*logRates(xhi)+ ((a0**3-a0)* ddlogRates(xlo) +(b0**3-b0)*ddlogRates(xhi))*ho**2/6
-        kappa_HH_21cm = exp(logRate)
-        !          kappa_HH_21cm = exp(polevl(logT,fit,7))*0.01**3
-
-    end if
-
-    end function kappa_HH_21cm
-
-
-    function kappa_eH_21cm(T, deriv)
-    !Polynomail fit to electron-Hydrogen collision rate as function of Tmatter; from astro-ph/0608032
-    !if deriv return d log kappa / d log T
-    ! from astro-ph/0608032
-    !    1 2.39e-10
-    !    2 3.37e-10
-    !    5 5.3e-10
-    !    10 7.46e-10
-    !    20 1.05e-9
-    !    50 1.63e-9
-    !    100 2.26e-9
-    !    200 3.11e-9
-    !    500 4.59e-9
-    !    1000 5.92e-9
-    !    2000 7.15e-9
-    !    5000 8.17e-9
-    !    10000 8.37e-9
-    !    15000 8.29e-9
-    !    20000 8.11e-9
-    real(dl), intent(in) :: T
-    logical, intent(in) :: deriv
-    real(dl), dimension(6), parameter :: fit = &
-        (/5.86236d-005,  -0.00171375_dl, 0.0137303_dl, -0.0435277_dl, 0.540905_dl,-22.1596_dl /)
-
-    real(dl) kappa_eH_21cm, logT
-
-    logT = log(T)
-    if (deriv) then
-        kappa_eH_21cm = derivpolevl(logT,fit,5)
-    else
-        kappa_eH_21cm = exp(polevl(logT,fit,5))*0.01**3
-    end if
-
-    end function kappa_eH_21cm
-
-
-
-
-    function kappa_pH_21cm(T, deriv) ! from astro-ph/0702487
-    !Not actually used
-    !Polynomail fit to proton-Hydrogen collision rate as function of Tmatter
-    !if deriv return d log kappa / d log T
-    real(dl), intent(in) :: T
-    logical, intent(in) :: deriv
-    integer, parameter :: n_table = 17
-    integer, dimension(n_table), parameter :: Temps = &
-        (/ 1, 2, 5, 10,20,50,100,200,500,1000,2000,3000,5000,7000,10000,15000,20000/)
-    real, dimension(n_table), parameter :: rates = &
-        (/ 0.4028, 0.4517,0.4301,0.3699,0.3172,0.3047, 0.3379, 0.4043, 0.5471, 0.7051, 0.9167, 1.070, &
-        1.301, 1.48,1.695,1.975,2.201/)
-
-    real(dl) kappa_pH_21cm, logT, logRate
-    real(dl), save, dimension(:), allocatable :: logRates, logTemps, ddlogRates
-    integer xlo, xhi
-    real(dl) :: a0, b0, ho
-    real(dl):: factor = 0.01**3*1e-9
-
-    if (.not. allocated(logRates)) then
-
-        allocate(logRates(n_table),logTemps(n_table),ddlogRates(n_table))
-        logRates = log(real(rates,dl)*factor)
-        logTemps = log(real(Temps,dl))
-        call spline(logTemps,logRates,n_table,1d30,1d30,ddlogRates)
-    end if
-
-    if (T<=Temps(1)) then
-        if (deriv) then
-            kappa_pH_21cm = 0
-        else
-            kappa_pH_21cm = rates(1)*factor
-        end if
-        return
-    elseif (T >=Temps(n_table)) then
-        if (deriv) then
-            kappa_pH_21cm = 0
-        else
-            kappa_pH_21cm = rates(n_table)*factor
-        end if
-        return
-    end if
-
-    logT = log(T)
-    xlo=0
-    do xhi=2, n_table
-        if (logT < logTemps(xhi)) then
-            xlo = xhi-1
-            exit
-        end  if
-    end do
-    xhi = xlo+1
-
-    ho=logTemps(xhi)-logTemps(xlo)
-    a0=(logTemps(xhi)-logT)/ho
-    b0=1-a0
-
-    if (deriv) then
-        kappa_pH_21cm  = (logRates(xhi) - logRates(xlo))/ho + &
-            ( ddlogRates(xhi)*(3*b0**2-1) - ddlogRates(xlo)*(3*a0**2-1))*ho/6
-    else
-        logRate = a0*logRates(xlo)+ b0*logRates(xhi)+ ((a0**3-a0)* ddlogRates(xlo) +(b0**3-b0)*ddlogRates(xhi))*ho**2/6
-        kappa_pH_21cm = exp(logRate)
-    end if
-
-    end function kappa_pH_21cm
-
+    end subroutine TRecfast_SelfPointer
 
     end module Recombination
-

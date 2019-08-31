@@ -1,10 +1,11 @@
+
+
     module Precision
     implicit none
 
     integer, parameter :: dl = KIND(1.d0)
     integer, parameter :: sp = KIND(1.0)
     end module Precision
-
 
     module constants
     use precision
@@ -15,7 +16,12 @@
 
     real(dl), parameter :: const_pi = 3.1415926535897932384626433832795_dl
     real(dl), parameter :: const_twopi=2._dl*const_pi, const_fourpi=4._dl*const_pi
+    real(dl), parameter :: const_eightpi=8._dl*const_pi
     real(dl), parameter :: const_sqrt6=2.4494897427831780981972840747059_dl
+    real(dl), parameter  :: zeta3  = 1.2020569031595942853997_dl
+    real(dl), parameter  :: zeta5  = 1.0369277551433699263313_dl
+    real(dl), parameter  :: zeta7  = 1.0083492773819228268397_dl
+
 
     real(dl), parameter :: c = 2.99792458e8_dl
     real(dl), parameter :: h_P = 6.62606896e-34_dl
@@ -55,6 +61,13 @@
     real(dl), parameter :: line21_const = 3*l_21cm**2*C*h_P/32/const_pi/k_B*A10 * Mpc_in_sec * 1000
     !1000 to get in MiliKelvin
     real(dl), parameter :: COBE_CMBTemp = 2.7255_dl !(Fixsen 2009) used as default value
+
+    ! zeta3*3/2/pi^2*4/11*((k_B*COBE_CMBTemp/hbar/c)^3* 8*pi*G/3/(100*km/s/megaparsec)^2/(c^2/eV)
+    real(dl), parameter :: inv_neutrino_mass_fac = zeta3*3._dl/2/const_pi**2*4._dl/11*((k_B*COBE_CMBTemp/hbar/c)**3* &
+        kappa/3/(100*1000/Mpc)**2/(c**2/eV))
+    !converts omnuh2 into sum m_nu in eV for non-relativistic but thermal neutrinos (no 0.046 factor); ~ 94.07
+    real(dl), parameter :: neutrino_mass_fac= 1/inv_neutrino_mass_fac
+
     real(dl), parameter :: default_nnu = 3.046_dl
     !neutrino oscillation angles
     real(dl), parameter :: s12sq = 0.304, s23sq = 0.51, s13sq = 0.0219 !terry
@@ -64,43 +77,15 @@
     real(dl), parameter :: r23 = ((1 - t13**2*(1 - t12**2))*(c23**2 - s23**2) + 2*t12*t13**2*s13*2*s23*c23)/& !terry
       ((1 - t12**2)*(c23**2 - s23**2) - 2*s13*t12*2*s23*c23) !terry
     !Neutrino mass splittings
-    real(dl), parameter :: delta_mnu21 = 7.37e-5_dl !eV^2 Particle Data Group 2018 (3 sigma 6.93-7.96)
-    real(dl), parameter :: delta_mnu31 = 2.56e-3_dl !eV^2 Particle Data Group 2018 (3 sigma 2.45-2.69)
+    real(dl), parameter :: delta_mnu21 = 7.54e-5_dl !eV^2 Particle Data Group 2015 (-0.22, + 0.26)
+    real(dl), parameter :: delta_mnu31 = 2.46e-3_dl !eV^2 Particle Data Group 2015 (+- 0.06)
     !Round up to 0.06, so consistent with cosmomc's 1 neutrino default
-    real(dl), parameter :: mnu_min_normal = sqrt(delta_mnu31)+sqrt(delta_mnu21) ! ~0.06 eV
+    real(dl), parameter :: mnu_min_normal = 0.06_dl ! sqrt(delta_mnu31)+sqrt(delta_mnu21)
 
+    !This constant initially was in inifile.f90.
+    integer, parameter :: Ini_max_string_len = 1024
     end module constants
 
 
-    module Errors
-    implicit none
 
-    integer :: global_error_flag=0
-    character(LEN=1024) :: global_error_message = ''
-    integer, parameter :: error_reionization=1
-    integer, parameter :: error_recombination=2
-    integer, parameter :: error_inital_power=3
-    integer, parameter :: error_evolution=4
-    integer, parameter :: error_unsupported_params=5
 
-    contains
-
-    subroutine GlobalError(message, id)
-    character(LEN=*), intent(IN), optional :: message
-    integer, intent(in), optional :: id
-
-    if (present(message)) then
-        global_error_message = message
-    else
-        global_error_message=''
-    end if
-    if (present(id)) then
-        if (id==0) error stop 'Error id must be non-zero'
-        global_error_flag=id
-    else
-        global_error_flag=-1
-    end if
-
-    end subroutine GlobalError
-
-    end module Errors

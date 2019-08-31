@@ -8,87 +8,91 @@
 
     module SpherBessels
     use Precision
-    use ModelParams
-    use Ranges
+    use results
+    use RangeUtils
+    use MpiUtils
     implicit none
     private
 
-    !     Bessel functions and their second derivatives for interpolation
+    ! Bessel functions and their second derivatives for interpolation
 
-    real(dl), dimension(:,:), allocatable ::  ajl,ajlpr, ddajlpr
+    real(dl), dimension(:,:), allocatable ::  ajl, ajlpr, ddajlpr
 
-    integer  num_xx, kmaxfile, file_numl,  file_l(lmax_arr)
-    !      parameters for working out where the flat Bessel functions are small
-    !      Both should increase for higher accuracy
-    !        real(dl), parameter :: xlimmin=15._dl  , xlimfrac = 0.05_dl
+    integer  num_xx, kmaxfile, max_ix
+    Type(lSamples), save :: file_l
+    ! parameters for working out where the flat Bessel functions are small
+    ! Both should increase for higher accuracy
+    ! real(dl), parameter :: xlimmin=15._dl  , xlimfrac = 0.05_dl
     real(dl), parameter :: xlimmin=35._dl  , xlimfrac = 0.05_dl
+    real(dl) file_acc
 
-    Type(Regions):: BessRanges
+    type(TRanges), save:: BessRanges
 
     public ajl, ajlpr, ddajlpr, BessRanges, InitSpherBessels, xlimmin, xlimfrac
     public USpherBesselWithDeriv, phi_recurs,phi_langer, bjl, Bessels_Free
 
     contains
 
-
-    subroutine InitSpherBessels
-    !     This subroutine reads the jl files from disk (or generates them if not on disk)
-    use lvalues
-    implicit none
+    subroutine InitSpherBessels(lSamp, CP,max_bessels_l_index, max_bessels_etak)
+    Type(lSamples) lSamp
+    Type(CAMBParams) :: CP
+    integer, intent(in) :: max_bessels_l_index
+    real(dl), intent(in) :: max_bessels_etak
 
     !See if already loaded with enough (and correct) lSamp%l values and k*eta values
-    if (allocated(ajl) .and. (lSamp%l0 <= file_numl) .and. all(file_l(1:lSamp%l0)-lSamp%l(1:lSamp%l0)==0) &
-        .and. (int(min(max_bessels_etak,CP%Max_eta_k))+1 <= kmaxfile)) return
+    if (lSamp%nl <= file_l%nl) then
+        if (allocated(ajl) .and. all(file_l%l(1:lSamp%nl)==lSamp%l(1:lSamp%nl) .and. (max_bessels_l_index <= max_ix)) &
+            .and. (int(min(max_bessels_etak,CP%Max_eta_k))+1 <= kmaxfile) &
+            .and. (abs(CP%Accuracy%BesselBoost*CP%Accuracy%AccuracyBoost - file_acc) < 1d-2)) return
+    end if
 
     !Haven't made them before, so make them now
-    call GenerateBessels
+    kmaxfile = int(min(CP%Max_eta_k,max_bessels_etak))+1
+    max_ix = min(max_bessels_l_index,lSamp%nl)
+
+    call GenerateBessels(lSamp, CP)
 
     if (DebugMsgs .and. FeedbackLevel > 0) write(*,*) 'Calculated Bessels'
 
     end subroutine InitSpherBessels
 
-    subroutine GenerateBessels
-    use lvalues
+    subroutine GenerateBessels(lSamp, CP)
+    Type(lSamples) lSamp
+    Type(CAMBParams) :: CP
     real(dl) x
     real(dl) xlim
     integer i,j
-    integer max_ix
-    real(dl), parameter :: bessel_boost =1._dl
-
 
     if (DebugMsgs .and. FeedbackLevel > 0) write (*,*) 'Generating flat Bessels...'
 
-
-    file_numl= lSamp%l0
-    file_l(1:lSamp%l0) = lSamp%l(1:lSamp%l0)
-    kmaxfile = int(min(CP%Max_eta_k,max_bessels_etak))+1
+    file_l = lSamp
     if (do_bispectrum) kmaxfile = kmaxfile*2
 
+    if (DebugMsgs .and. FeedbackLevel > 0) write (*,*) 'x_max bessels', kmaxfile
 
-    call Ranges_Init(BessRanges)
+    call BessRanges%Init()
 
-    call Ranges_Add_delta(BessRanges,0._dl, 1._dl,0.01_dl/bessel_boost)
-    call Ranges_Add_delta(BessRanges,1._dl, 5._dl,0.1_dl/bessel_boost)
-    call Ranges_Add_delta(BessRanges,5._dl, 25._dl,0.2_dl/bessel_boost)
-    call Ranges_Add_delta(BessRanges,25._dl, 150._dl,0.5_dl/bessel_boost/AccuracyBoost)
-    call Ranges_Add_delta(BessRanges,150._dl, real(kmaxfile,dl),0.8_dl/bessel_boost/AccuracyBoost)
+    call BessRanges%Add_delta(0._dl, 1._dl,0.01_dl/CP%Accuracy%BesselBoost)
+    call BessRanges%Add_delta(1._dl, 5._dl,0.1_dl/CP%Accuracy%BesselBoost)
+    call BessRanges%Add_delta(5._dl, 25._dl,0.2_dl/CP%Accuracy%BesselBoost)
+    file_acc = CP%Accuracy%BesselBoost*CP%Accuracy%AccuracyBoost
+    call BessRanges%Add_delta(25._dl, 150._dl,0.5_dl/file_acc)
+    call BessRanges%Add_delta(150._dl, real(kmaxfile,dl),0.8_dl/file_acc)
 
-    call Ranges_GetArray(bessRanges, .false.)
+    call BessRanges%GetArray(.false.)
     num_xx = BessRanges%npoints
 
 
-    max_ix = min(max_bessels_l_index,lSamp%l0)
+    ! The three arrays are always (de-)allocated together. Therefore checking
+    ! one of them for allocation is sufficient.
+    if (.not. allocated(ajl) .or. any(ubound(ajl) < [num_xx, max_ix])) then
+        if (allocated(ajl)) deallocate(ajl, ajlpr, ddajlpr)
+        allocate(ajl(1:num_xx,1:max_ix), ajlpr(1:num_xx,1:max_ix), &
+            ddajlpr(1:num_xx,1:max_ix))
+    end if
 
-    if (allocated(ajl)) deallocate(ajl)
-    if (allocated(ajlpr)) deallocate(ajlpr)
-    if (allocated(ddajlpr)) deallocate(ddajlpr)
-    Allocate(ajl(1:num_xx,1:max_ix))
-    Allocate(ajlpr(1:num_xx,1:max_ix))
-    Allocate(ddajlpr(1:num_xx,1:max_ix))
-
-    !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC), PRIVATE(j,i,x,xlim)
+    !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC), PRIVATE(i, x, xlim)
     do j=1,max_ix
-
         do  i=1,num_xx
             x=BessRanges%points(i)
             xlim=xlimfrac*lSamp%l(j)
@@ -113,7 +117,6 @@
         !     get the interpolation matrix for bessel functions
         call spline(BessRanges%points,ajl(1,j),num_xx,spl_large,spl_large,ajlpr(1,j))
         call spline(BessRanges%points,ajlpr(1,j),num_xx,spl_large,spl_large,ddajlpr(1,j))
-
     end do
     !$OMP END PARALLEL DO
 
@@ -124,7 +127,7 @@
     if (allocated(ajl)) deallocate(ajl)
     if (allocated(ajlpr)) deallocate(ajlpr)
     if (allocated(ddajlpr)) deallocate(ddajlpr)
-    call Ranges_Free(BessRanges)
+    call BessRanges%Free()
 
     end  subroutine Bessels_Free
 
@@ -311,26 +314,14 @@
     !                                                                      c
     !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
-
-
-    ! module USpherBessels
-    ! use Precision
-    ! implicit none
-    ! private
-
-
-    !public USpherBesselWithDeriv, phi_recurs,phi_langer
-
-
-    ! contains
-
-    subroutine USpherBesselWithDeriv(closed,Chi,l,beta,y1,y2)
+    subroutine USpherBesselWithDeriv(closed,CP,Chi,l,beta,y1,y2)
     !returns y1=ujl*sinhChi and y2=diff(y1,Chi)
     !aim for accuracy > 1% for all inputs
     real(dl) Chi,beta,y1,y2,sinhChi,cothChi
     real(dl) sin_K, cot_K
     integer l,K
     logical, intent(IN) :: closed
+    Type(CAMBParams), intent(in) :: CP
     logical DoRecurs
 
     if (closed) then
@@ -346,8 +337,8 @@
     sinhChi = sin_K
     cothChi = cot_K
 
-    DoRecurs = ((l<=45*AccuracyBoost).OR.((.not.closed.or.(abs(Chi-pi/2)>0.2d0)).and.(beta*l<750) &
-        .or.closed.and.(beta*l<4000)))
+    DoRecurs = ((l<=45*CP%Accuracy%AccuracyBoost).OR.((.not.closed.or.(abs(Chi-const_pi/2)>0.2d0))&
+        .and.(beta*l<750).or.closed.and.(beta*l<4000)))
 
     !Deep in the tails the closed recursion relation is not stable
     !Added July 2003 to prevent problems with very nearly flat models
@@ -552,24 +543,14 @@
 
     ! Test input values
 
-    if(l<0) then
-        call MpiStop("Bessel function index ell < 0")
-    endif
-    if(beta<0._dl) then
-        call MpiStop("Wavenumber beta < 0")
-    endif
-    if ((abs(K)/=1).and.(K/=0)) then
-        call MpiStop("K must be 1, 0 or -1")
-    end if
+    if(l<0) call MpiStop("Bessel function index ell < 0")
+    if(beta<0._dl) call MpiStop("Wavenumber beta < 0")
+    if ((abs(K)/=1).and.(K/=0)) call MpiStop("K must be 1, 0 or -1")
 
     if(K==1) then
         ibeta=nint(beta)
-        if(ibeta<3) then
-            call MpiStop("Wavenumber beta < 3 for K=1")
-        endif
-        if(ibeta<=l) then
-            call MpiStop("Wavenumber beta <= l")
-        endif
+        if(ibeta<3) call MpiStop("Wavenumber beta < 3 for K=1")
+        if(ibeta<=l) call MpiStop("Wavenumber beta <= l")
     endif
 
     if (chi<1/BIG) then
@@ -775,9 +756,7 @@
     !
     if(l<0) call MpiStop("Bessel function index ell < 0")
     if(beta<0._dl) call MpiStop("Wavenumber beta < 0")
-    if ((abs(K)/=1).and.(K/=0)) then
-        call MpiStop("K must be 1, 0 or -1")
-    end if
+    if ((abs(K)/=1).and.(K/=0)) call MpiStop("K must be 1, 0 or -1")
 
 
     if(K == 1) then
