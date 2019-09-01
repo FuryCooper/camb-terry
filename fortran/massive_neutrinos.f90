@@ -8,6 +8,8 @@
     real(dl), parameter  :: const2 = 5._dl/7._dl/const_pi**2   !0.072372274_dl
 
     !Steps for spline interpolation (use series outside this range)
+    !terry: interpolation changed to linear spacing instead of log
+    !todo check accuracy?
     integer, parameter  :: nrhopn=1400
     real(dl), parameter :: am_min = 0.3_dl
     !smallest a*m_nu to integrate distribution function rather than using series
@@ -47,7 +49,7 @@
     class(TThermalNuBackground), pointer :: ThermalNuBack !ifort workaround
 
     public fermi_dirac_const,  sum_mnu_for_m1, neutrino_mass_fac, TNuPerturbations, &
-        ThermalNuBackground, ThermalNuBack
+        ThermalNuBackground, ThermalNuBack, nuRhoPres
     contains
 
     subroutine sum_mnu_for_m1(summnu,dsummnu, m1, targ, sgn)
@@ -174,6 +176,7 @@
     enddo !terry
 
     end subroutine ThermalNuBackground_init
+
 
     subroutine nuRhoPres(am,rhonu,pnu, xi_camb) !terry
     !  Compute the density and pressure of one eigenstate of massive neutrinos,

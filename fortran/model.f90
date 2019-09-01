@@ -237,6 +237,51 @@
     end select
     end subroutine CAMBparams_Replace
 
+    function Get_xi_Neff(xi, neff_in)
+      use constants
+      real(dl) :: Get_xi_Neff, xi_fac(3), xi(3), neff_in, neff
+      optional :: neff_in
+      integer :: i
+      neff = 3.046d0
+      if (present(neff_in)) neff = neff_in
+      do i = 1, 3
+        xi_fac(i) = (1._dl+30._dl*(xi(i)**2._dl)/7._dl/(const_pi**2._dl)+15._dl*(xi(i)**4._dl)/7._dl/(const_pi**4._dl))
+      enddo
+      Get_xi_Neff = neff/3 * sum(xi_fac(1:3))
+      return 
+    end function
+
+    function GetOmegaNu(P, H0, omegan, xi)
+      use constants
+      real(dl), parameter  :: const  = 7._dl/120*const_pi**4 ! 5.68219698_dl
+	    real(dl) :: GetOmegaNu, rhonu, mass, grhom, grhog, grhor, grhormass(3), xi(3), omegan,h0, pnu, nu_masses(4)
+	    integer :: nu_i, i
+      type(CAMBParams)  P
+      grhom = 3*h0**2/c**2*1000**2 !3*h0^2/c^2 (=8*pi*G*rho_crit/c^2)
+      !grhog = kappa/c**2*4*sigma_boltz/c**3*P%tcmb**4*Mpc**2 !8*pi*G/c^2*4*sigma_B/c^3 T^4
+      grhog = kappa/c**2*4*sigma_boltz/c**3*COBE_CMBTemp**4*Mpc**2 !8*pi*G/c^2*4*sigma_B/c^3 T^4
+      grhor = 7._dl/8*(4._dl/11)**(4._dl/3)*grhog !7/8*(4/11)^(4/3)*grhog (per neutrino species)
+      grhormass=0
+      do nu_i = 1, P%Nu_mass_eigenstates
+        grhormass(nu_i)=grhor*P%Nu_mass_degeneracies(nu_i)
+      end do
+      nu_masses = 0
+      !omegan = omnuh2 / (H0/100)**2 
+      do i=1, P%Nu_mass_eigenstates
+        nu_masses(i)=const/(1.5d0*zeta3)*grhom/grhor*omegan*P%Nu_mass_fractions(i) &
+          /P%Nu_mass_degeneracies(i)
+      end do
+	    GetOmegaNu = 0.d0
+	    do nu_i = 1, 3
+		    call nuRhoPres(nu_masses(nu_i),rhonu, pnu, xi(nu_i))
+		    GetOmegaNu = GetOmegaNu + rhonu / grhom * grhormass(nu_i)
+	    enddo
+      if (isnan(GetOmegaNu)) then
+        print *, 'debug for GetOmegaNu', grhom, grhog, grhor, grhormass, nu_masses
+        stop
+      endif
+    end function GetOmegaNu
+
     subroutine CAMBparams_SetNeutrinoHierarchy(this, omnuh2, omnuh2_sterile, nnu, neutrino_hierarchy, num_massive_neutrinos)
     !Set neutrino hierarchy in the approximate two-eigenstate model (treating two as exactly degenerate, and assuming non-relativistic),
     !or use degenerate mass approximation.

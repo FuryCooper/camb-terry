@@ -295,7 +295,7 @@
     integer nu_i,actual_massless
     real(dl) nu_massless_degeneracy, neff_i, eta_k, h2
     real(dl) zpeak, sigma_z, zpeakstart, zpeakend
-    real(dl) zeta3_corr(4), xi !terry
+    real(dl) zeta3_corr(4), xi, xi_amp !terry
     Type(TRedWin), pointer :: Win
     !Constants in SI units
 
@@ -458,22 +458,50 @@
             !  Error due to velocity < 1e-5 for mnu~0.06 but can easily correct
             !terry: correction to neutrino number density due to xi
             !instead of zeta3, we have zeta3 + log4 xi^2 / 3 + xi^4 / 72 - xi^6 / 4320 + xi^8 / 120960 + ...
+            !but we want energy density to be distributed according to this extra factor
             do nu_i=1, this%CP%Nu_mass_eigenstates
                 xi = this%CP%xi_nu(nu_i) !terry
-                zeta3_corr(nu_i) = zeta3 + log(4.d0) / 3.d0 * xi**2 + xi**4 / 72.d0 - xi**6 / 4320.d0 + xi**8 / 120960.d0 !terry
-                !this%nu_masses(nu_i)=fermi_dirac_const/(1.5d0*zeta3)*this%grhocrit/this%grhor* &
-                this%nu_masses(nu_i)=fermi_dirac_const/(1.5d0*zeta3_corr(nu_i))*this%grhocrit/this%grhor* & !terry
-                    this%CP%omnuh2/h2*this%CP%Nu_mass_fractions(nu_i)/this%CP%Nu_mass_degeneracies(nu_i)
+                zeta3_corr(nu_i) = zeta3 + log(4.d0) / 3.d0 * xi**2 + xi**4 / 72.d0 - xi**6 / 4320.d0 + xi**8 / 120960.d0 - &
+                  17.d0 / 43545600.d0 * xi**10 + 31.d0 / 1437004800.d0 * xi**12 !terry
+            enddo
+            zeta3_corr = zeta3_corr / zeta3
+            xi_amp = sum(this%CP%Nu_mass_fractions(1:this%CP%Nu_mass_eigenstates) * zeta3_corr(1:this%CP%Nu_mass_eigenstates))!terry
+            do nu_i=1, this%CP%Nu_mass_eigenstates
+                this%nu_masses(nu_i)=fermi_dirac_const/(1.5d0*zeta3)*this%grhocrit/this%grhor* &
+                    this%CP%omnuh2/h2*this%CP%Nu_mass_fractions(nu_i)/this%CP%Nu_mass_degeneracies(nu_i) / &
+                    xi_amp!terry
                 block
-                    real(dl) rhonu, rhonu1, delta
+                    real(dl) rhonu, rhonu1, delta, p
 
                     !Make perturbative correction for the tiny error due to the neutrino velocity
                     call ThermalNuBackground%rho(this%nu_masses(nu_i), rhonu, nu_i)
                     call ThermalNuBackground%rho(this%nu_masses(nu_i)*0.9, rhonu1, nu_i)
-                    delta = rhonu - this%CP%Nu_mass_fractions(nu_i)*this%grhocrit*this%CP%omnuh2/h2/this%grhormass(nu_i)
+                    delta = rhonu - this%CP%Nu_mass_fractions(nu_i)*this%grhocrit*this%CP%omnuh2/h2/this%grhormass(nu_i) * &
+                      zeta3_corr(nu_i) / xi_amp
                     this%nu_masses(nu_i) = this%nu_masses(nu_i)*(1 + delta/((rhonu1 - rhonu)/0.1) )
                 end block
             end do
+            !terry: test for the calculated rhonu vs input omnuh2
+            !error is ~1 order larger than xi=0 case, but still small
+            !todo check later?
+            !block
+            !  real(dl) rhonu, totrho, nu_masses_old(4), totrho_old
+            !  totrho = 0
+            !  totrho_old = 0
+            !  do nu_i = 1, this%CP%Nu_mass_eigenstates
+            !    nu_masses_old(nu_i)=fermi_dirac_const/(1.5d0*zeta3)*this%grhocrit/this%grhor* &
+            !        this%CP%omnuh2/h2*this%CP%Nu_mass_fractions(nu_i)/this%CP%Nu_mass_degeneracies(nu_i) / &
+            !        xi_amp!terry
+            !    call ThermalNuBackground%rho(this%nu_masses(nu_i), rhonu, nu_i)
+            !    rhonu = rhonu * this%CP%Nu_mass_degeneracies(nu_i)
+            !    totrho = totrho + rhonu
+            !    call ThermalNuBackground%rho(nu_masses_old(nu_i), rhonu, nu_i)
+            !    rhonu = rhonu * this%CP%Nu_mass_degeneracies(nu_i)
+            !    totrho_old = totrho_old + rhonu
+            !  enddo
+            !  !print *, totrho_old/this%grhocrit*this%grhor*h2/this%CP%omnuh2, 'rhonu ratio1'
+            !  !print *, totrho/this%grhocrit*this%grhor*h2/this%CP%omnuh2, 'rhonu ratio2'
+            !end block
         else
             this%nu_masses = 0
         end if
@@ -561,7 +589,7 @@
             do nu_i=1, this%CP%Nu_mass_eigenstates
                 conv = k_B*(8*this%grhor/this%grhog/7)**0.25*this%CP%tcmb/eV * &
                     (this%CP%nu_mass_degeneracies(nu_i)/this%CP%nu_mass_numbers(nu_i))**0.25 !approx 1.68e-4
-                write(*,'(I2, " nu, g=",f7.4," m_nu*c^2/k_B/T_nu0= ",f9.2," (m_nu= ",f6.3," eV)")') &
+                write(*,'(I2, " nu, g=",f7.4," m_nu*c^2/k_B/T_nu0= ",f11.4," (m_nu= ",f8.5," eV)")') &
                     this%CP%nu_mass_numbers(nu_i), this%CP%nu_mass_degeneracies(nu_i), &
                     this%nu_masses(nu_i),conv*this%nu_masses(nu_i)
             end do
