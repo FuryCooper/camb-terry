@@ -1026,23 +1026,6 @@
 
     end subroutine CAMBdata_DarkEnergyStressEnergy
 
-    subroutine get_xi_from_xi3(xi_nu)
-      use constants
-      real(dl) :: xi_nu(3)
-      integer :: i
-      !terry: calculate CP%xi_nu(1) CP%xi_nu(2) from CP%xi_nu(3)
-      !for delta CP=0
-      xi_nu(2) = r23 * xi_nu(3) * (xi_nu(3)**2 + const_pi**2)/const_pi**2
-      do i = 1, 10
-        xi_nu(2) = r23 * xi_nu(3) * (xi_nu(3)**2 + const_pi**2)/(xi_nu(2)**2 + const_pi**2)
-      enddo
-      xi_nu(1) = -(s12sq * xi_nu(2) * (xi_nu(2)**2 + const_pi**2) + t13**2 * xi_nu(3) * (xi_nu(3)**2 + const_pi**2))/c12**2/const_pi**2
-      do i = 1, 10
-        xi_nu(1) = -(s12sq * xi_nu(2) * (xi_nu(2)**2 + const_pi**2) + t13**2 * xi_nu(3) &
-          * (xi_nu(3)**2 + const_pi**2))/c12**2/(xi_nu(1)**2 + const_pi**2)
-      enddo
-    end subroutine
-
     function rofChi(this,Chi) !sinh(chi) for open, sin(chi) for closed.
     class(CAMBdata) :: this
     real(dl) Chi,rofChi
