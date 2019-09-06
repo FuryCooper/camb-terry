@@ -268,36 +268,36 @@
       return 
     end function
 
-    function GetOmegaNu(P, H0, omegan, xi)
-      use constants
-      real(dl), parameter  :: const  = 7._dl/120*const_pi**4 ! 5.68219698_dl
-	    real(dl) :: GetOmegaNu, rhonu, mass, grhom, grhog, grhor, grhormass(3), xi(3), omegan,h0, pnu, nu_masses(4)
-	    integer :: nu_i, i
-      type(CAMBParams)  P
-      grhom = 3*h0**2/c**2*1000**2 !3*h0^2/c^2 (=8*pi*G*rho_crit/c^2)
-      !grhog = kappa/c**2*4*sigma_boltz/c**3*P%tcmb**4*Mpc**2 !8*pi*G/c^2*4*sigma_B/c^3 T^4
-      grhog = kappa/c**2*4*sigma_boltz/c**3*COBE_CMBTemp**4*Mpc**2 !8*pi*G/c^2*4*sigma_B/c^3 T^4
-      grhor = 7._dl/8*(4._dl/11)**(4._dl/3)*grhog !7/8*(4/11)^(4/3)*grhog (per neutrino species)
-      grhormass=0
-      do nu_i = 1, P%Nu_mass_eigenstates
-        grhormass(nu_i)=grhor*P%Nu_mass_degeneracies(nu_i)
-      end do
-      nu_masses = 0
-      !omegan = omnuh2 / (H0/100)**2 
-      do i=1, P%Nu_mass_eigenstates
-        nu_masses(i)=const/(1.5d0*zeta3)*grhom/grhor*omegan*P%Nu_mass_fractions(i) &
-          /P%Nu_mass_degeneracies(i)
-      end do
-	    GetOmegaNu = 0.d0
-	    do nu_i = 1, 3
-		    call nuRhoPres(nu_masses(nu_i),rhonu, pnu, xi(nu_i))
-		    GetOmegaNu = GetOmegaNu + rhonu / grhom * grhormass(nu_i)
-	    enddo
-      if (isnan(GetOmegaNu)) then
-        print *, 'debug for GetOmegaNu', grhom, grhog, grhor, grhormass, nu_masses
-        stop
-      endif
-    end function GetOmegaNu
+    !function GetOmegaNu(P, H0, omegan, xi)
+    !  use constants
+    !  real(dl), parameter  :: const  = 7._dl/120*const_pi**4 ! 5.68219698_dl
+	  !  real(dl) :: GetOmegaNu, rhonu, mass, grhom, grhog, grhor, grhormass(3), xi(3), omegan,h0, pnu, nu_masses(4)
+	  !  integer :: nu_i, i
+    !  type(CAMBParams)  P
+    !  grhom = 3*h0**2/c**2*1000**2 !3*h0^2/c^2 (=8*pi*G*rho_crit/c^2)
+    !  !grhog = kappa/c**2*4*sigma_boltz/c**3*P%tcmb**4*Mpc**2 !8*pi*G/c^2*4*sigma_B/c^3 T^4
+    !  grhog = kappa/c**2*4*sigma_boltz/c**3*COBE_CMBTemp**4*Mpc**2 !8*pi*G/c^2*4*sigma_B/c^3 T^4
+    !  grhor = 7._dl/8*(4._dl/11)**(4._dl/3)*grhog !7/8*(4/11)^(4/3)*grhog (per neutrino species)
+    !  grhormass=0
+    !  do nu_i = 1, P%Nu_mass_eigenstates
+    !    grhormass(nu_i)=grhor*P%Nu_mass_degeneracies(nu_i)
+    !  end do
+    !  nu_masses = 0
+    !  !omegan = omnuh2 / (H0/100)**2 
+    !  do i=1, P%Nu_mass_eigenstates
+    !    nu_masses(i)=const/(1.5d0*zeta3)*grhom/grhor*omegan*P%Nu_mass_fractions(i) &
+    !      /P%Nu_mass_degeneracies(i)
+    !  end do
+	  !  GetOmegaNu = 0.d0
+	  !  do nu_i = 1, 3
+		!    call nuRhoPres(nu_masses(nu_i),rhonu, pnu, xi(nu_i))
+		!    GetOmegaNu = GetOmegaNu + rhonu / grhom * grhormass(nu_i)
+	  !  enddo
+    !  if (isnan(GetOmegaNu)) then
+    !    print *, 'debug for GetOmegaNu', grhom, grhog, grhor, grhormass, nu_masses
+    !    stop
+    !  endif
+    !end function GetOmegaNu
 
     subroutine CAMBparams_SetNeutrinoHierarchy(this, omnuh2, omnuh2_sterile, nnu, neutrino_hierarchy, num_massive_neutrinos)
     !Set neutrino hierarchy in the approximate two-eigenstate model (treating two as exactly degenerate, and assuming non-relativistic),
@@ -327,11 +327,12 @@
                 this%Num_Nu_Massless = 0
                 neff_massive_standard=nnu
             end if
-            this%Nu_mass_numbers(this%Nu_mass_eigenstates) = 1 ! terry
-            this%Nu_mass_degeneracies(this%Nu_mass_eigenstates) = neff_massive_standard / 3 ! terry
-            this%Nu_mass_fractions(this%Nu_mass_eigenstates) = normal_frac / 3 ! terry
+            this%Nu_mass_numbers(1:this%Nu_mass_eigenstates) = 1 ! terry
+            this%Nu_mass_degeneracies(1:this%Nu_mass_eigenstates) = neff_massive_standard / 3 ! terry
+            this%Nu_mass_fractions(1:this%Nu_mass_eigenstates) = normal_frac / 3 ! terry
         else
             !Use normal or inverted hierarchy, approximated as two eigenstates in physical regime, 1 at minimum and below
+            !terry todo: cosmomc call (in SetForH ) doesn't have the temperature factor, but difference is small
             mnu = (omnuh2 - omnuh2_sterile)*neutrino_mass_fac*(COBE_CMBTemp/this%TCMB)**3/ (default_nnu / 3) ** 0.75_dl
             if (neutrino_hierarchy == neutrino_hierarchy_normal) then
                 if (mnu > mnu_min_normal + 1e-4_dl) then
@@ -345,7 +346,7 @@
             else if (neutrino_hierarchy == neutrino_hierarchy_inverted) then
                 if (mnu > sqrt(delta_mnu31)+sqrt(delta_mnu31+delta_mnu21) + 1e-4_dl ) then
                     !Valid case, two eigenstates
-                    m1=Newton_Raphson2(sqrt(delta_mnu31), mnu, sum_mnu_for_m1, mnu, -1._dl)
+                    m1=Newton_Raphson2(sqrt(delta_mnu31)+1.e-8_dl, mnu, sum_mnu_for_m1, mnu, -1._dl)
                     this%Num_Nu_Massive = 3
                 else
                     !Unphysical low mass case: take one (2-degenerate) eigenstate

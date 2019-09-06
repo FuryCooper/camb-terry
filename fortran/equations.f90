@@ -40,6 +40,15 @@
         end do
     end if
 
+    if (grhoa2==0.d0) then
+      print *, "grhoa2 is 0"
+      print *, "a, this%grhoc, this%grhob, this%grhog, this%grhornomass, grhov_t"
+      print *, a, this%grhoc, this%grhob, this%grhog, this%grhornomass, grhov_t
+      do nu_i = 1, this%CP%nu_mass_eigenstates
+        call ThermalNuBack%rho(a * this%nu_masses(nu_i), rhonu, nu_i)
+        print *, rhonu * this%grhormass(nu_i)
+      end do
+    endif
     dtauda = sqrt(3 / grhoa2)
 
     end function dtauda
@@ -373,14 +382,15 @@
         else if (next_switch == tau_switch_nu_massless) then
             !Mass starts to become important, start evolving next momentum mode
             do nu_i = 1, CP%Nu_mass_eigenstates
-                if (EV%nq(nu_i) /= State%NuPerturbations%nqmax .and. &
-                    next_switch == nu_tau_notmassless(next_nu_nq(EV%nq(nu_i)),nu_i)) then
-                    EVOut%nq(nu_i) = next_nu_nq(EV%nq(nu_i))
-                    call SetupScalarArrayIndices(EVout)
-                    call CopyScalarVariableArray(y,yout, EV, EVout)
-                    EV=EVout
-                    y=yout
-                    exit
+                if (EV%nq(nu_i) /= State%NuPerturbations%nqmax) then
+                    if (next_switch == nu_tau_notmassless(next_nu_nq(EV%nq(nu_i)),nu_i)) then
+                        EVOut%nq(nu_i) = next_nu_nq(EV%nq(nu_i))
+                        call SetupScalarArrayIndices(EVout)
+                        call CopyScalarVariableArray(y,yout, EV, EVout)
+                        EV=EVout
+                        y=yout
+                        exit
+                    endif
                 end if
             end do
         else if (next_switch == tau_switch_nu_nonrel) then

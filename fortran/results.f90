@@ -285,6 +285,7 @@
     subroutine CAMBdata_SetParams(this, P, error, DoReion, call_again)
     !Initialize background variables; does not yet calculate thermal history
     use constants
+    use PolyLog
     class(CAMBdata), target :: this
     type(CAMBparams), intent(in) :: P
     real(dl) fractional_number, conv
@@ -458,15 +459,21 @@
             !  Error due to velocity < 1e-5 for mnu~0.06 but can easily correct
             !terry: correction to neutrino number density due to xi
             !instead of zeta3, we have zeta3 + log4 xi^2 / 3 + xi^4 / 72 - xi^6 / 4320 + xi^8 / 120960 + ...
-            !but we want energy density to be distributed according to this extra factor
+            !now we have a good algorithm for calculating polylog, don't need series expansion anymore
+            !the new number density in terms of polylog is -Li(3, -exp(-xi))-Li(3, -exp(xi)), 1.5*zeta3 at xi=0
+            !zeta3_corr = -Li(3, -exp(-xi))-Li(3, -exp(xi)) / 1.5 / zeta3
+            !we want energy density to be distributed according to this extra factor, mass fractions stay the same
             do nu_i=1, this%CP%Nu_mass_eigenstates
                 xi = this%CP%xi_nu(nu_i) !terry
-                zeta3_corr(nu_i) = zeta3 + log(4.d0) / 3.d0 * xi**2 + xi**4 / 72.d0 - xi**6 / 4320.d0 + xi**8 / 120960.d0 - &
-                  17.d0 / 43545600.d0 * xi**10 + 31.d0 / 1437004800.d0 * xi**12 !terry
+                !zeta3_corr(nu_i) = zeta3 + log(4.d0) / 3.d0 * xi**2 + xi**4 / 72.d0 - xi**6 / 4320.d0 + xi**8 / 120960.d0 - &
+                !  17.d0 / 43545600.d0 * xi**10 + 31.d0 / 1437004800.d0 * xi**12 !terry
+                zeta3_corr(nu_i) = -polyLogLi(3, -exp(xi)) - polyLogLi(3, -exp(-xi))
             enddo
-            zeta3_corr = zeta3_corr / zeta3
+            zeta3_corr = zeta3_corr / zeta3 / 1.5d0
             xi_amp = sum(this%CP%Nu_mass_fractions(1:this%CP%Nu_mass_eigenstates) * zeta3_corr(1:this%CP%Nu_mass_eigenstates))!terry
             do nu_i=1, this%CP%Nu_mass_eigenstates
+                conv = k_B*(8*this%grhor/this%grhog/7)**0.25*this%CP%tcmb/eV * &
+                  (this%CP%nu_mass_degeneracies(nu_i)/this%CP%nu_mass_numbers(nu_i))**0.25 !approx 1.68e-4
                 this%nu_masses(nu_i)=fermi_dirac_const/(1.5d0*zeta3)*this%grhocrit/this%grhor* &
                     this%CP%omnuh2/h2*this%CP%Nu_mass_fractions(nu_i)/this%CP%Nu_mass_degeneracies(nu_i) / &
                     xi_amp!terry
@@ -881,6 +888,7 @@
     rs = Integrate_Romberg(this,dsound_da_approx,1d-8,astar,atol)
     DA = this%AngularDiameterDistance(zstar)/astar
     CAMBdata_CosmomcTheta = rs/DA
+    rs = dtauda(this, 1.d-3)
 
     end function CAMBdata_CosmomcTheta
 
@@ -1408,6 +1416,8 @@
                             !Try to keep lensed spectra up to specified lmax
                             lind=lind+1
                             ls(lind)=max_l - lensed_convolution_margin
+                        else if (ls(lind) - ls(lind-1) > lensed_convolution_margin) then
+                            ls(lind)=max_l - lensed_convolution_margin
                         end if
                     end if
                 end if !log_lvalues
@@ -1416,7 +1426,7 @@
                     ls(lind)=max_l
                 end if
                 if (.not. State%flat .and. max_l<=5000) ls(lind-1)=int(max_l+ls(lind-2))/2
-                !Not in CP%flat case so interpolation table is the same when using lower l_max
+                !Not in flat case so interpolation table is the same when using lower l_max
             end if
         end if
     end associate
