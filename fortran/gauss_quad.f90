@@ -58,6 +58,7 @@ contains
     integer :: i
     character(*), optional :: datadir_in
     character(1024) :: datadir = "./"
+    if (inited) return
     if (present(datadir_in)) then
       datadir = trim(datadir_in)
     endif

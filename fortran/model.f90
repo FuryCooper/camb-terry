@@ -200,9 +200,22 @@
     procedure :: PrimordialPower => CAMBparams_PrimordialPower
     procedure :: SetCustomSourcesFunc => CAMBparams_SetCustomSourcesFunc
     procedure :: N_eff => CAMBparams_N_eff
+    procedure :: print_params => print_p !terry for debug
     end type CAMBparams
 
     contains
+
+    subroutine print_p(this)
+    class(CAMBparams), intent(in) :: this
+    
+    print *, "min max l", this%min_l, this%max_l, this%Max_eta_k
+    print *, "xi nu", this%xi_nu, this%xi_nu_massless
+    print *, "omega", this%ombh2, this%omch2, this%omk, this%omnuh2
+    print *, "H0, TCMB, YHe", this%H0, this%TCMB, this%YHe
+    print *, "neutrino p", this%Num_Nu_Massless, this%Num_Nu_Massive
+    print *, this%Nu_mass_eigenstates, this%Nu_mass_degeneracies(:this%Nu_mass_eigenstates)
+    print *, this%Nu_mass_fractions(:this%Nu_mass_eigenstates), this%Nu_mass_numbers(:this%Nu_mass_eigenstates)
+    end subroutine
 
     function CAMBparams_PythonClass()
     character(LEN=:), allocatable :: CAMBparams_PythonClass

@@ -196,10 +196,13 @@
     xi_nu = xi_camb
     xifacOK = .true.
 
-    if (allocated(this%r1)) return
+    !terry bug fix
+    !if (allocated(this%r1)) return
     ThermalNuBack => ThermalNuBackground !ifort bug workaround
 
-    allocate(this%r1(nrhopn, 4),this%p1(nrhopn, 4),this%dr1(nrhopn, 4),this%dp1(nrhopn, 4),this%ddr1(nrhopn, 4))
+    if (.not. allocated(this%r1)) then
+      allocate(this%r1(nrhopn, 4),this%p1(nrhopn, 4),this%dr1(nrhopn, 4),this%dp1(nrhopn, 4),this%ddr1(nrhopn, 4))
+    endif
     this%dam=(am_max-am_min)/(nrhopn-1)
 
     !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC), &
@@ -221,33 +224,37 @@
       call splder(this%dr1(:,i),this%ddr1(:,i),nrhopn,spline_data) !terry
     enddo !terry
 
-    !do i = -10, 10
-    !  if (i==0) then
-    !    print *, "middle min"
-    !  endif
-    !  am = am_minp*(1+i*1.d-2)
-    !  call ThermalNuBackground_rho_P(this,am,rhonu,pnu, 3)
-    !  print *, rhonu, pnu, ThermalNuBackground_drho(this, am, 1.d0, 3)
+    !terry debug
+    !print *, "xinu", xi_nu(1:3)
+    !do j = 1, 3
+    !  print *, "thermal neutrino rho p drho", j
+    !  do i = -10, 10
+    !    if (i==0) then
+    !      print *, "middle min"
+    !    endif
+    !    am = am_minp*(1+i*1.d-2)
+    !    call ThermalNuBackground_rho_P(this,am,rhonu,pnu, j)
+    !    print *, rhonu, pnu, ThermalNuBackground_drho(this, am, 1.d0, j)
+    !  enddo
+    !  print *, "++++++++++++++++++"
+    !  do i = -10, 10
+    !    if (i==0) then
+    !      print *, "middle max"
+    !    endif
+    !    am = am_maxp*(1+i*1.d-2)
+    !    call ThermalNuBackground_rho_P(this,am,rhonu,pnu, j)
+    !    print *, rhonu, pnu, ThermalNuBackground_drho(this, am, 1.d0, j)
+    !  enddo
+    !  print *, "++++++++++++++++++"
+    !  do i = -10, 10
+    !    if (i==0) then
+    !      print *, "middle 0.01"
+    !    endif
+    !    am = 0.01d0*(1+i*1.d-2)
+    !    call ThermalNuBackground_rho_P(this,am,rhonu,pnu, j)
+    !    print *, rhonu, pnu, ThermalNuBackground_drho(this, am, 1.d0, j)
+    !  enddo
     !enddo
-    !print *, "++++++++++++++++++"
-    !do i = -10, 10
-    !  if (i==0) then
-    !    print *, "middle max"
-    !  endif
-    !  am = am_maxp*(1+i*1.d-2)
-    !  call ThermalNuBackground_rho_P(this,am,rhonu,pnu, 3)
-    !  print *, rhonu, pnu, ThermalNuBackground_drho(this, am, 1.d0, 3)
-    !enddo
-    !print *, "++++++++++++++++++"
-    !do i = -10, 10
-    !  if (i==0) then
-    !    print *, "middle 0.01"
-    !  endif
-    !  am = 0.01d0*(1+i*1.d-2)
-    !  call ThermalNuBackground_rho_P(this,am,rhonu,pnu, 3)
-    !  print *, rhonu, pnu, ThermalNuBackground_drho(this, am, 1.d0, 3)
-    !enddo
-    !stop
 
     end subroutine ThermalNuBackground_init
 
