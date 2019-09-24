@@ -182,7 +182,6 @@
         real(dl) nu_masses(max_nu)
         integer ::  num_transfer_redshifts = 1
         real(dl), allocatable  ::  transfer_redshifts(:)
-        real(dl), allocatable ::  transfer_times(:)
         integer  ::  PK_redshifts_index(max_transfer_redshifts)
 
         logical :: OnlyTransfer = .false. !C_L/PK not computed; initial power spectrum data, instead get Delta_q_l array
@@ -207,8 +206,13 @@
         !Background interpolation tables for thermal history etc.
         Type(TThermoData) :: ThermoData
 
+        real(dl), allocatable :: transfer_times(:)
+
         !Matter transfer data
         Type (MatterTransferData):: MT
+
+        !Matter power spectrum for default variable (used for non-linear corrections)
+        Type(MatterPowerData), allocatable :: CAMB_PK
 
         Type(TClData) :: CLdata
 
@@ -452,6 +456,12 @@
             call get_xi_from_xi3(this%CP%xi_nu(1:3)) ! terry
             call ThermalNuBackground%Init(this%CP%xi_nu(1:4))
             call this%NuPerturbations%Init(P%Accuracy%AccuracyBoost*P%Accuracy%neutrino_q_boost, this%CP%xi_nu(1:4))
+            !  nu_masses=m_nu(i)*c**2/(k_B*T_nu0)
+            do nu_i=1, this%CP%Nu_mass_eigenstates
+                this%nu_masses(nu_i)= ThermalNuBackground%find_nu_mass_for_rho(this%CP%omnuh2/h2*this%CP%Nu_mass_fractions(nu_i)&
+                    *this%grhocrit/this%grhormass(nu_i), nu_i)
+            end do
+            !terry old ver
             !  nu_masses=m_nu(i)*c**2/(k_B*T_nu0).
             !  Get number density n of neutrinos from
             !  rho_massless/n = int q^3/(1+e^q) / int q^2/(1+e^q)=7/180 pi^4/Zeta(3)
@@ -463,31 +473,30 @@
             !the new number density in terms of polylog is -Li(3, -exp(-xi))-Li(3, -exp(xi)), 1.5*zeta3 at xi=0
             !zeta3_corr = -Li(3, -exp(-xi))-Li(3, -exp(xi)) / 1.5 / zeta3
             !we want energy density to be distributed according to this extra factor, mass fractions stay the same
-            do nu_i=1, this%CP%Nu_mass_eigenstates
-                xi = this%CP%xi_nu(nu_i) !terry
-                !zeta3_corr(nu_i) = zeta3 + log(4.d0) / 3.d0 * xi**2 + xi**4 / 72.d0 - xi**6 / 4320.d0 + xi**8 / 120960.d0 - &
-                !  17.d0 / 43545600.d0 * xi**10 + 31.d0 / 1437004800.d0 * xi**12 !terry
-                zeta3_corr(nu_i) = -polyLogLi(3, -exp(xi)) - polyLogLi(3, -exp(-xi))
-            enddo
-            zeta3_corr = zeta3_corr / zeta3 / 1.5d0
-            xi_amp = sum(this%CP%Nu_mass_fractions(1:this%CP%Nu_mass_eigenstates) * zeta3_corr(1:this%CP%Nu_mass_eigenstates))!terry
-            do nu_i=1, this%CP%Nu_mass_eigenstates
-                conv = k_B*(8*this%grhor/this%grhog/7)**0.25*this%CP%tcmb/eV * &
-                  (this%CP%nu_mass_degeneracies(nu_i)/this%CP%nu_mass_numbers(nu_i))**0.25 !approx 1.68e-4
-                this%nu_masses(nu_i)=fermi_dirac_const/(1.5d0*zeta3)*this%grhocrit/this%grhor* &
-                    this%CP%omnuh2/h2*this%CP%Nu_mass_fractions(nu_i)/this%CP%Nu_mass_degeneracies(nu_i) / &
-                    xi_amp!terry
-                block
-                    real(dl) rhonu, rhonu1, delta, p
+            !do nu_i=1, this%CP%Nu_mass_eigenstates
+            !    xi = this%CP%xi_nu(nu_i) !terry
+            !    !zeta3_corr(nu_i) = zeta3 + log(4.d0) / 3.d0 * xi**2 + xi**4 / 72.d0 - xi**6 / 4320.d0 + xi**8 / 120960.d0 - &
+            !    !  17.d0 / 43545600.d0 * xi**10 + 31.d0 / 1437004800.d0 * xi**12 !terry
+            !    zeta3_corr(nu_i) = -polyLogLi(3, -exp(xi)) - polyLogLi(3, -exp(-xi))
+            !enddo
+            !zeta3_corr = zeta3_corr / zeta3 / 1.5d0
+            !xi_amp = sum(this%CP%Nu_mass_fractions(1:this%CP%Nu_mass_eigenstates) * zeta3_corr(1:this%CP%Nu_mass_eigenstates))!terry
+            !do nu_i=1, this%CP%Nu_mass_eigenstates
+            !    conv = k_B*(8*this%grhor/this%grhog/7)**0.25*this%CP%tcmb/eV * &
+            !      (this%CP%nu_mass_degeneracies(nu_i)/this%CP%nu_mass_numbers(nu_i))**0.25 !approx 1.68e-4
+            !    this%nu_masses(nu_i)=fermi_dirac_const/(1.5d0*zeta3)*this%grhocrit/this%grhor* &
+            !        this%CP%omnuh2/h2*this%CP%Nu_mass_fractions(nu_i)/this%CP%Nu_mass_degeneracies(nu_i) / &
+            !        xi_amp!terry
+            !    block
+            !        real(dl) rhonu, rhonu1, delta, p
 
-                    !Make perturbative correction for the tiny error due to the neutrino velocity
-                    call ThermalNuBackground%rho(this%nu_masses(nu_i), rhonu, nu_i)
-                    call ThermalNuBackground%rho(this%nu_masses(nu_i)*0.9, rhonu1, nu_i)
-                    delta = rhonu - this%CP%Nu_mass_fractions(nu_i)*this%grhocrit*this%CP%omnuh2/h2/this%grhormass(nu_i) * &
-                      zeta3_corr(nu_i) / xi_amp
-                    this%nu_masses(nu_i) = this%nu_masses(nu_i)*(1 + delta/((rhonu1 - rhonu)/0.1) )
-                end block
-            end do
+            !        !Make perturbative correction for the tiny error due to the neutrino velocity
+            !        call ThermalNuBackground%rho(this%nu_masses(nu_i), rhonu, nu_i)
+            !        call ThermalNuBackground%rho(this%nu_masses(nu_i)*0.9, rhonu1, nu_i)
+            !        delta = rhonu - this%CP%Nu_mass_fractions(nu_i)*this%grhocrit*this%CP%omnuh2/h2/this%grhormass(nu_i) * &
+            !          zeta3_corr(nu_i) / xi_amp
+            !        this%nu_masses(nu_i) = this%nu_masses(nu_i)*(1 + delta/((rhonu1 - rhonu)/0.1) )
+            !    end block
             !terry: test for the calculated rhonu vs input omnuh2
             !error is ~1 order larger than xi=0 case, but still small
             !todo check later?
@@ -612,6 +621,7 @@
     call Free_ClTransfer(this%ClData%CTransVec)
     call Free_ClTransfer(this%ClData%CTransTens)
     call this%MT%Free()
+    if (allocated(this%CAMB_Pk)) deallocate(this%CAMB_PK)
 
     end subroutine CAMBdata_Free
 
@@ -3028,21 +3038,46 @@
     nk=M%num_q_trans
     nz=State%CP%Transfer%PK_num_redshifts
     if (nk/= size(PK,1) .or. nz/=size(PK,2)) call MpiStop('Trasfer_GetUnsplinedPower wrong size')
-
     h = State%CP%H0/100
 
-    do ik=1,nk
-        k = M%TransferData(Transfer_kh,ik,1)*h
+    if (s1==transfer_power_var .and. s2==transfer_power_var .and. allocated(State%CAMB_Pk)) then
+        !Already computed
         do zix=1,nz
-            PK(ik,zix) = M%TransferData(s1,ik,State%PK_redshifts_index(nz-zix+1))*&
-                M%TransferData(s2,ik,State%PK_redshifts_index(nz-zix+1))*k*&
-                const_pi*const_twopi*State%CP%InitPower%ScalarPower(k)
+            PK(:,zix) = exp(State%CAMB_pk%matpower(:, State%PK_redshifts_index(nz-zix+1)))
         end do
-    end do
+        if (.not. hnorm) PK=  PK / h**3
+    else
 
-    if (hnorm) PK=  PK * h**3
+        do ik=1,nk
+            k = M%TransferData(Transfer_kh,ik,1)*h
+            do zix=1,nz
+                PK(ik,zix) = M%TransferData(s1,ik,State%PK_redshifts_index(nz-zix+1))*&
+                    M%TransferData(s2,ik,State%PK_redshifts_index(nz-zix+1))*k*&
+                    const_pi*const_twopi*State%CP%InitPower%ScalarPower(k)
+            end do
+        end do
+
+        if (hnorm) PK=  PK * h**3
+    end if
 
     end subroutine Transfer_GetUnsplinedPower
+
+    subroutine Transfer_GetNonLinRatio_index(State,M, ratio, itf)
+    Type(MatterTransferData), intent(in) :: M
+    Type(CAMBdata) :: State
+    real(dl), allocatable, intent(out) :: ratio(:)
+    integer, intent(in) :: itf
+    Type(MatterPowerData) :: PKdata
+
+    if (allocated(State%CAMB_PK)) then
+        allocate(ratio, source = State%CAMB_PK%nonlin_ratio(:,itf))
+    else
+        call Transfer_GetMatterPowerData(State, M, PKdata,itf)
+        call State%CP%NonLinearModel%GetNonLinRatios(State,PKdata)
+        allocate(ratio, source = PKdata%nonlin_ratio(:,1))
+    end if
+    end subroutine Transfer_GetNonLinRatio_index
+
 
     subroutine Transfer_GetUnsplinedNonlinearPower(State,M, PK,var1,var2, hubble_units)
     !Get 2pi^2/k^3 T_1 T_2 P_R(k) after re-scaling for non-linear evolution (if turned on)
@@ -3052,16 +3087,20 @@
     integer, optional, intent(in) :: var1
     integer, optional, intent(in) :: var2
     logical, optional, intent(in) :: hubble_units
-    Type(MatterPowerData) :: PKdata
     integer zix
+    real(dl), allocatable :: ratio(:)
+
+    if (.not. allocated(State%CAMB_Pk) .and. State%CP%Transfer%PK_num_redshifts == State%num_transfer_redshifts &
+        .and. .not. State%OnlyTransfer) then
+        allocate(State%CAMB_PK)
+        call Transfer_GetMatterPowerData(State, State%MT, State%CAMB_PK)
+        call State%CP%NonLinearModel%GetNonLinRatios(State, State%CAMB_PK)
+    end if
 
     call Transfer_GetUnsplinedPower(State,M,PK,var1,var2, hubble_units)
     do zix=1, State%CP%Transfer%PK_num_redshifts
-        call Transfer_GetMatterPowerData(State, M, PKdata, &
-            State%PK_redshifts_index(State%CP%Transfer%PK_num_redshifts-zix+1))
-        call State%CP%NonLinearModel%GetNonLinRatios(State,PKdata)
-        PK(:,zix) =  PK(:,zix) *PKdata%nonlin_ratio(:,1)**2
-        call MatterPowerdata_Free(PKdata)
+        call Transfer_GetNonLinRatio_index(State, M, ratio,State%PK_redshifts_index(State%CP%Transfer%PK_num_redshifts-zix+1))
+        PK(:,zix) =  PK(:,zix) *ratio**2
     end do
 
     end subroutine Transfer_GetUnsplinedNonlinearPower
@@ -3352,7 +3391,6 @@
     !sepctrum is generated to beyond the CMB k_max
     class(CAMBdata) :: state
     Type(MatterTransferData), intent(in) :: MTrans
-    Type(MatterPowerData) :: PK
 
     integer, intent(in) :: itf_PK, npoints
     real(dl), intent(out) :: outpower(npoints)
@@ -3365,6 +3403,7 @@
     real(dl) atransfer,xi, a0, b0, ho, logmink,k, h
     integer itf
     integer :: s1,s2
+    real(dl), allocatable :: ratio(:)
 
     s1 = PresentDefault (transfer_power_var, var1)
     s2 = PresentDefault (transfer_power_var, var2)
@@ -3379,8 +3418,7 @@
 
 
     if (State%CP%NonLinear/=NonLinear_none .and. State%CP%NonLinear/=NonLinear_Lens) then
-        call Transfer_GetMatterPowerData(State, MTrans, PK, itf)
-        call State%CP%NonLinearModel%GetNonLinRatios(State, PK)
+        call Transfer_GetNonLinRatio_index(State, Mtrans, ratio, itf)
     end if
 
     h = State%CP%H0/100
@@ -3391,7 +3429,7 @@
         kvals(ik) = log(kh)
         atransfer=MTrans%TransferData(s1,ik,itf)*MTrans%TransferData(s2,ik,itf)
         if (State%CP%NonLinear/=NonLinear_none .and. State%CP%NonLinear/=NonLinear_Lens) &
-            atransfer = atransfer* PK%nonlin_ratio(ik,1)**2 !only one element, this itf
+            atransfer = atransfer* ratio(ik)**2 !only one element, this itf
         matpower(ik) = log(atransfer*k*const_pi*const_twopi*h**3)
         !Put in power spectrum later: transfer functions should be smooth, initial power may not be
     end do
@@ -3438,8 +3476,6 @@
             if (global_error_flag /= 0) exit
         end do
     end associate
-
-    if (State%CP%NonLinear/=NonLinear_none .and. State%CP%NonLinear/=NonLinear_Lens) call MatterPowerdata_Free(PK)
 
     end subroutine Transfer_GetMatterPowerD
 
