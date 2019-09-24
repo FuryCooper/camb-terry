@@ -300,7 +300,7 @@
     integer nu_i,actual_massless
     real(dl) nu_massless_degeneracy, neff_i, eta_k, h2
     real(dl) zpeak, sigma_z, zpeakstart, zpeakend
-    real(dl) zeta3_corr(4), xi, xi_amp !terry
+    real(dl) zeta3_corr(4), xi, xi_amp, omnuh2_min !terry
     Type(TRedWin), pointer :: Win
     !Constants in SI units
 
@@ -354,7 +354,9 @@
             if (sum(this%CP%Nu_mass_numbers(1:this%CP%Nu_mass_eigenstates))/=0) &
                 call GlobalError('Num_Nu_Massive is not sum of Nu_mass_numbers', error_unsupported_params)
         end if
-        if (this%CP%Omnuh2 < 1.e-7_dl) this%CP%Omnuh2 = 0
+        !if (this%CP%Omnuh2 < 1.e-7_dl) this%CP%Omnuh2 = 0
+        omnuh2_min = 7._dl/8*(4._dl/11)**(4._dl/3)*kappa/c**2*4*sigma_boltz/c**3*this%CP%tcmb**4*Mpc**2 * 3.046 / 3.d0 * c**2/1000**2 / 100**2
+        if (this%CP%Omnuh2 < omnuh2_min) this%CP%Omnuh2 = 0 !terry
         if (this%CP%Omnuh2==0 .and. this%CP%Num_Nu_Massive /=0) then
             if (this%CP%share_delta_neff) then
                 this%CP%Num_Nu_Massless = this%CP%Num_Nu_Massless + this%CP%Num_Nu_Massive
