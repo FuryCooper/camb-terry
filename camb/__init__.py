@@ -6,7 +6,8 @@ Python CAMB interface (https://camb.info)
 """
 __author__ = "Antony Lewis"
 __contact__ = "antony at cosmologist dot info"
-__version__ = "1.0.8"
+__url__ = "https://camb.readthedocs.io"
+__version__ = "1.0.10"
 
 from . import baseconfig
 

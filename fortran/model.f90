@@ -325,7 +325,10 @@
     real(dl) normal_frac, m3, neff_massive_standard, mnu, m1
 
     this%omnuh2 = omnuh2
-    if (omnuh2==0) return
+    if (omnuh2==0) then
+      this%Num_Nu_Massless = nnu
+      return
+    endif
     !this%Nu_mass_eigenstates=0
     this%Nu_mass_eigenstates=3 ! terry, hard-coded to be 3
     if (omnuh2 > omnuh2_sterile) then

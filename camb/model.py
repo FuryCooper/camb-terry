@@ -221,8 +221,8 @@ class CAMBparams(F2003Class):
         ("OutputNormalization", c_int, "If non-zero, multipole to normalize the C_L at"),
         ("Alens", c_double, "non-physical scaling amplitude for the CMB lensing spectrum power"),
         ("MassiveNuMethod", c_int, {"names": ["Nu_int", "Nu_trunc", "Nu_approx", "Nu_best"]}),
-        ("DoLateRadTruncation", c_bool,
-         "If true, use smooth approx to radition perturbations after decoupling on small scales, saving evolution of irrelevant osciallatory multipole equations"),
+        ("DoLateRadTruncation", c_bool, "If true, use smooth approx to radition perturbations after decoupling on small"
+                                        " scales, saving evolution of irrelevant osciallatory multipole equations"),
         ("Evolve_baryon_cs", c_bool,
          "Evolve a separate equation for the baryon sound speed rather than using background approximation"),
         ("Evolve_delta_xe", c_bool, "Evolve ionization fraction perturbations"),
@@ -230,10 +230,8 @@ class CAMBparams(F2003Class):
         ("Do21cm", c_bool, "21cm is not yet implemented via the python wrapper"),
         ("transfer_21cm_cl", c_bool, "Get 21cm C_L at a given fixed redshift"),
         ("Log_lvalues", c_bool, "Use log spacing for sampling in L"),
-        (
-            "use_cl_spline_template", c_bool,
-            "When interpolating use a fiducial spectrum shape to define ratio to spline"),
-
+        ("use_cl_spline_template", c_bool,
+         "When interpolating use a fiducial spectrum shape to define ratio to spline"),
         ("SourceWindows", AllocatableObjectArray(SourceWindow)),
         ("CustomSources", CustomSources)
     ]
@@ -413,25 +411,32 @@ class CAMBparams(F2003Class):
         approximation to the known mass splittings seen in oscillation measurements.
         For more fine-grained control can set the neutrino parameters directly rather than using this function.
 
-        Instead of setting the Hubble parameter directly, you can instead set the acoustic scale parameter (cosmomc_theta, which
-        is based on a fitting forumula for simple models, or thetastar, which is numerically calculated more generally).
-        Note that you must have already set the dark energy model, you can't use set_cosmology with theta and then
-        change the background evolution (which would change theta at the calculated H0 value).
-        Likewise the dark energy model cannot depend explicitly on H0.
+        Instead of setting the Hubble parameter directly, you can instead set the acoustic scale parameter
+        (cosmomc_theta, which is based on a fitting forumula for simple models, or thetastar, which is numerically
+        calculated more generally). Note that you must have already set the dark energy model, you can't use
+        set_cosmology with theta and then change the background evolution (which would change theta at the calculated
+        H0 value).Likewise the dark energy model cannot depend explicitly on H0.
 
-        :param H0: Hubble parameter today in km/s/Mpc. Can leave unset and instead set thetastar or cosmomc_theta (which solves for the required H0).
+        :param H0: Hubble parameter today in km/s/Mpc. Can leave unset and instead set thetastar or cosmomc_theta
+                  (which solves for the required H0).
         :param ombh2: physical density in baryons
         :param omch2:  physical density in cold dark matter
         :param omk: Omega_K curvature parameter
-        :param cosmomc_theta: The approximate CosmoMC theta parameter :math:`\theta_{\rm MC}`. The angular diamter distance is calculated numerically,
-           but the redshift :math:`z_\star` is calculated using an approximate (quite accurate but non-general) fitting formula. Leave unset to use H0 or thetastar.
-        :param thetastar: The angular acoustic scale parameter :math:`\theta_\star = r_s(z_*)/D_M(z_*)`, defined as the ratio of the photon-baryon sound horizon :math:`r_s` to the
-           angular diameter distance :math:`D_M`, where both quantities are evaluated at :math:`z_*`, the redshift at which the optical depth
-           (excluding reionization) is unity. Leave unset to use H0 or cosmomc_theta.
+        :param cosmomc_theta: The approximate CosmoMC theta parameter :math:`\theta_{\rm MC}`. The angular
+                              diamter distance is calculated numerically, but the redshift :math:`z_\star`
+                              is calculated using an approximate (quite accurate but non-general) fitting formula.
+                              Leave unset to use H0 or thetastar.
+        :param thetastar: The angular acoustic scale parameter :math:`\theta_\star = r_s(z_*)/D_M(z_*)`, defined as
+                    the ratio of the photon-baryon sound horizon :math:`r_s` to the angular diameter
+                    distance :math:`D_M`, where both quantities are evaluated at :math:`z_*`, the redshift at
+                    which the optical depth (excluding reionization) is unity. Leave unset to use H0 or cosmomc_theta.
         :param neutrino_hierarchy: 'degenerate', 'normal', or 'inverted' (1 or 2 eigenstate approximation)
         :param num_massive_neutrinos:  number of massive neutrinos
-        :param mnu: sum of neutrino masses (in eV, Omega_nu is calculated approximately from this assuming neutrinos non-relativistic today).
-             Set the field values directly if you need finer control or more complex models.
+        :param mnu: sum of neutrino masses (in eV). Omega_nu is calculated approximately from this assuming neutrinos
+               non-relativistic today; i.e. here is defined as a direct proxy for Omega_nu. Internally the actual
+               physical mass is calculated from the Omega_nu accounting for small mass-dependent velocity corrections
+               but neglecting spectral distortions to the neutrino distribution.
+               Set the neutrino field values directly if you need finer control or more complex neutrino models.
         :param nnu: N_eff, effective relativistic degrees of freedom
         :param YHe: Helium mass fraction. If None, set from BBN consistency.
         :param meffsterile: effective mass of sterile neutrinos
