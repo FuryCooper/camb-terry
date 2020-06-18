@@ -978,6 +978,9 @@
                     else
                         if (abs(tau-State%Transfer_Times(itf-1)) > 5.e-5_dl) then
                             write(*,*) 'WARNING: mismatch in integrated times (CalcScalarSources)'
+                            !print *, 'times', tau, State%Transfer_Times(itf-1), abs(tau-State%Transfer_Times(itf-1))
+                            !call CP%print_params()
+                            !stop
                         end if
                     end if
                 endif

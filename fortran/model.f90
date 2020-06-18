@@ -250,22 +250,50 @@
     end select
     end subroutine CAMBparams_Replace
 
-    subroutine get_xi_from_xi3(xi_nu)
+    subroutine get_xi_from_xi3(xi_nu, Le)
       use constants
-      real(dl) :: xi_nu(3)
+      real(dl) :: xi_nu(3), Le, c223, s223, c213, s213, c212, s212, L1, L2, L3
+      optional :: Le
       integer :: i
       !terry: calculate CP%xi_nu(1) CP%xi_nu(2) from CP%xi_nu(3)
       !for delta CP=0
-      xi_nu(2) = r23 * xi_nu(3) * (xi_nu(3)**2 + const_pi**2)/const_pi**2
-      do i = 1, 10
-        xi_nu(2) = r23 * xi_nu(3) * (xi_nu(3)**2 + const_pi**2)/(xi_nu(2)**2 + const_pi**2)
-      enddo
-      xi_nu(1) = -(s12sq * xi_nu(2) * (xi_nu(2)**2 + const_pi**2) + t13**2 * xi_nu(3) * (xi_nu(3)**2 + const_pi**2))/c12**2/const_pi**2
-      do i = 1, 10
-        xi_nu(1) = -(s12sq * xi_nu(2) * (xi_nu(2)**2 + const_pi**2) + t13**2 * xi_nu(3) &
-          * (xi_nu(3)**2 + const_pi**2))/c12**2/(xi_nu(1)**2 + const_pi**2)
-      enddo
+      if (.not. present(Le)) then
+        xi_nu(2) = r23 * xi_nu(3) * (xi_nu(3)**2 + const_pi**2)/const_pi**2
+        do i = 1, 10
+          xi_nu(2) = r23 * xi_nu(3) * (xi_nu(3)**2 + const_pi**2)/(xi_nu(2)**2 + const_pi**2)
+        enddo
+        xi_nu(1) = -(s12sq * xi_nu(2) * (xi_nu(2)**2 + const_pi**2) + t13**2 * xi_nu(3) * (xi_nu(3)**2 + const_pi**2))/c12**2/const_pi**2
+        do i = 1, 10
+          xi_nu(1) = -(s12sq * xi_nu(2) * (xi_nu(2)**2 + const_pi**2) + t13**2 * xi_nu(3) &
+            * (xi_nu(3)**2 + const_pi**2))/c12**2/(xi_nu(1)**2 + const_pi**2)
+        enddo
+      else
+       c212 = c12 ** 2 - s12sq
+       c213 = c13 ** 2 - s13sq
+       c223 = c23 ** 2 - s23sq
+       s212 = 2.d0 * s12 * c12
+       s213 = 2.d0 * s13 * c13
+       s223 = 2.d0 * s23 * c23
+       L3 = 1.d0 / 12.d0 / zeta3 * (const_pi ** 2 + xi_nu(3) ** 2) * xi_nu(3)
+       L1 = c223 * (-2.d0 * L3 + 2.d0 * Le + c212 * (-L3 + 3.d0 * Le + c213 * (3.d0 * L3 - Le)) / c213) + 2.d0 * (L3 - 2.d0 * Le - L3 * c213) / c13 * s212 * s223 * t13
+       L1 = L1 / (4.d0 * c212 * c223 - 4.d0 * s212 * s13 * s223)
+       xi_nu(1) = xi_from_L(L1)
+       L2 = c223 / s12sq * (2.d0 * (L3 - Le) + c212 * (3.d0 * Le - L3 + (3.d0 * L3 - Le) * c213) / c13 ** 2)  + &
+         4.d0 * (L3 - 2.d0 * Le - L3 * c213) / t12 / c13 * s223 * t13
+       L2 = L2 / (4.d0 * c212 * c223 / s12sq - 8.d0 / t12 * s13 * s223)
+       xi_nu(2) = xi_from_L(L2)
+      endif
     end subroutine
+
+    function xi_from_L(L)
+      use constants
+      real(dl) :: L, xi_from_L, zetaL, temp
+      !zeta3 = 1.202056903159594d0
+      zetaL = 12.d0 * zeta3 * L
+      temp = (sqrt(81.d0 * zetaL ** 2 + 12.d0 * const_pi ** 6) - 9.d0 * zetaL) ** (1.d0 / 3.d0)
+      xi_from_L = 2.d0 * 3.d0 ** (1.d0 / 3.d0) * const_pi ** 2 - 2.d0 ** (1.d0 / 3.d0) * temp ** 2
+      xi_from_L = xi_from_L / 6.d0 ** (2.d0 / 3.d0) / temp
+    end function
 
     function Get_xi_Neff(xi, neff_in)
       use constants

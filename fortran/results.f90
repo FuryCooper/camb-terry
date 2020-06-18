@@ -456,6 +456,9 @@
         if (this%CP%omnuh2/=0) then
             !Initialize things for massive neutrinos
             call get_xi_from_xi3(this%CP%xi_nu(1:3)) ! terry
+            !print *, this%CP%xi_nu(1:3)
+            !call get_xi_from_xi3(this%CP%xi_nu(1:3), 0.d0) ! terry
+            !print *, this%CP%xi_nu(1:3)
             call ThermalNuBackground%Init(this%CP%xi_nu(1:4))
             call this%NuPerturbations%Init(P%Accuracy%AccuracyBoost*P%Accuracy%neutrino_q_boost, this%CP%xi_nu(1:4))
             !  nu_masses=m_nu(i)*c**2/(k_B*T_nu0)
