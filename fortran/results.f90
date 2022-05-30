@@ -544,13 +544,13 @@
             !  !print *, totrho_old/this%grhocrit*this%grhor*h2/this%CP%omnuh2, 'rhonu ratio1'
             !  !print *, totrho/this%grhocrit*this%grhor*h2/this%CP%omnuh2, 'rhonu ratio2'
             !end block
-            if (all(this%nu_masses(1:this%CP%Nu_mass_eigenstates)==0)) then
-                !All density accounted for by massless, so just use massless
-                this%CP%Omnuh2 = 0
-                goto 10
-            end if
-            !Just prevent divide by zero
-            this%nu_masses(1:this%CP%Nu_mass_eigenstates) = max(this%nu_masses(1:this%CP%Nu_mass_eigenstates),1e-3_dl)
+            !if (all(this%nu_masses(1:this%CP%Nu_mass_eigenstates)==0)) then
+            !    !All density accounted for by massless, so just use massless
+            !    this%CP%Omnuh2 = 0
+            !    goto 10
+            !end if
+            !!Just prevent divide by zero
+            !this%nu_masses(1:this%CP%Nu_mass_eigenstates) = max(this%nu_masses(1:this%CP%Nu_mass_eigenstates),1e-3_dl)
         else
             this%nu_masses = 0
         end if
@@ -1291,7 +1291,7 @@
     if (this%CP%Num_Nu_massive /= 0) then
         !Get massive neutrino density relative to massless
         do nu_i = 1, this%CP%nu_mass_eigenstates
-            call ThermalNuBack%rho(a * this%nu_masses(nu_i), rhonu)
+            call ThermalNuBack%rho(a * this%nu_masses(nu_i), rhonu, nu_i)
             grhoa2 = grhoa2 + rhonu * this%grhormass(nu_i)
         end do
     end if
