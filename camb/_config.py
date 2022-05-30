@@ -1,3 +1,4 @@
+import os
 from .baseconfig import import_property, CAMBError
 from ctypes import c_char, c_int, c_bool, c_double
 
@@ -6,11 +7,11 @@ lensing_method_flat_corr = 2
 lensing_method_harmonic = 3
 
 
-class _config(object):
+class _config:
     # print feedback if > 0 (note in Jupyter notebook this will appear in the terminal, not the notebook)
     FeedbackLevel = import_property(c_int, "config", "FeedbackLevel")
 
-    # print additioanl timing a progress (when FeedbackLevel>0)
+    # print additional timing and progress (when FeedbackLevel>0)
     DebugMsgs = import_property(c_bool, "config", "DebugMsgs")
 
     global_error_flag = import_property(c_int, "config", "global_error_flag")
@@ -24,7 +25,8 @@ class _config(object):
     lensing_method = import_property(c_int, "lensing", "lensing_method")
 
     lensing_sanity_check_amplitude = import_property(c_double, "lensing", "lensing_sanity_check_amplitude")
-    # lensing_sanity_check_amplitude.value = 1e-7 by default, will error if  (2*l+1)l(l+1)/4pi C_phi_phi > lensing_sanity_check_amplitude at L=10
+    # lensing_sanity_check_amplitude.value = 1e-7 by default, will error if  (2*L+1)L(L+1)/4pi C_phi_phi > lensing_
+    # sanity_check_amplitude at L=10
     # increase to large number to prevent sanity check (but lensing requires realistic amplitude as non-linear)
 
     lensing_includes_tensors = import_property(c_bool, "lensing", "lensing_includes_tensors")
@@ -54,8 +56,13 @@ class _config(object):
         s = ''
         for x in dir(self):
             if x[0] != '_':
-                s += '%s = %s\n' % (x, getattr(self, x))
+                value = getattr(self, x)
+                if not callable(value):
+                    s += '%s = %s\n' % (x, value)
         return s
 
 
 config = _config()
+
+if os.environ.get('BINDER_LAUNCH_HOST'):
+    config.ThreadNum = 1  # binder is very slow with more than 1 CPU, force 1 by default

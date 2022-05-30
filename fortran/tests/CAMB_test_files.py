@@ -1,4 +1,3 @@
-from __future__ import print_function
 import os
 import subprocess
 import argparse
@@ -124,22 +123,22 @@ def normabs(o, n, tol):
     return res
 
 
-def wantCMBTandlmaxscalarge2000(ini):
+def wantCMBTandlmaxscalarge2000(ini_file):
     """
     Return true when want_CMB is set in the ini file and l_max_scalar is >= 2000.
-    :param ini: The dictionary all inifile settings.
+    :param ini_file: The dictionary all inifile settings.
     :return: True, when want_CMB and l_max_scalar >= 2000, false else.
     """
-    return ini.int("l_max_scalar") >= 2000 and ini.bool("want_CMB")
+    return ini_file.int("l_max_scalar") >= 2000 and ini_file.bool("want_CMB")
 
 
-def wantCMBT(ini):
+def wantCMBT(ini_file):
     """
     Return true when want_CMB is set.
-    :param ini: The dictionary all inifile settings.
+    :param ini_file: The dictionary all inifile settings.
     :return: True, when want_CMB is set.
     """
-    return ini.bool("want_CMB")
+    return ini_file.bool("want_CMB")
 
 
 # A short cut for lensedCls and lenspotentialCls files.
@@ -238,7 +237,8 @@ if not os.path.exists(args.ini_dir):
 out_files_dir = os.path.join(args.ini_dir, args.out_files_dir)
 
 if args.clean:
-    if os.path.exists(out_files_dir): shutil.rmtree(out_files_dir)
+    if os.path.exists(out_files_dir):
+        shutil.rmtree(out_files_dir)
 
 if not os.path.exists(out_files_dir):
     os.mkdir(out_files_dir)
@@ -256,11 +256,11 @@ def runScript(fname):
 
 
 def getInis(ini_dir):
-    inis = []
+    ini_files = []
     for fname in os.listdir(ini_dir):
         if fnmatch.fnmatch(fname, '*.ini'):
-            inis.append(os.path.join(args.ini_dir, fname))
-    return inis
+            ini_files.append(os.path.join(args.ini_dir, fname))
+    return ini_files
 
 
 def getTestParams():
@@ -393,13 +393,13 @@ def getTestParams():
         params.append(['counts_lmax2', 'l_max_scalar = 1200'] + counts_def + source_counts)
 
         params.append(['counts_overlap'] + counts_def
-                      + ['num_redshiftwindows = 2'] + make_win(1, 0.17, 'counts', 1.2, 0.04, -0.2) \
+                      + ['num_redshiftwindows = 2'] + make_win(1, 0.17, 'counts', 1.2, 0.04, -0.2)
                       + make_win(2, 0.2, 'counts', 1.2, 0.04, -0.2))
         params.append(['lensing_base', 'DEFAULT(../inifiles/params_lensing.ini)'])
         params.append(['21cm_base', 'DEFAULT(../inifiles/params_21cm.ini)'])
         params.append(['21cm_base2', 'DEFAULT(../inifiles/params_21cm.ini)', 'get_transfer = T'])
         params.append(['counts_lens', 'DEFAULT(../inifiles/params_counts.ini)']
-                      + ['num_redshiftwindows = 2'] + make_win(1, 0.17, 'counts', 1.2, 0.04, -0.2) \
+                      + ['num_redshiftwindows = 2'] + make_win(1, 0.17, 'counts', 1.2, 0.04, -0.2)
                       + make_win(2, 0.5, 'lensing', 0, 0.07, 0.2))
 
     max_tests = args.max_tests or os.environ.get('CAMB_TESTS_MAX')
@@ -409,7 +409,7 @@ def getTestParams():
 
 
 def list_files(file_dir):
-    return [f for f in os.listdir(file_dir) if not '.ini' in f]
+    return [f for f in os.listdir(file_dir) if '.ini' not in f]
 
 
 def output_file_num(file_dir):
@@ -419,18 +419,18 @@ def output_file_num(file_dir):
 def makeIniFiles():
     printlog('Making test ini files...')
     params = getTestParams()
-    inis = []
+    ini_files = []
     base_ini = 'inheritbase_' + os.path.basename(args.base_settings)
     shutil.copy(args.base_settings, os.path.join(args.ini_dir, base_ini))
     for pars in params:
         name = 'params_' + pars[0]
         fname = os.path.join(args.ini_dir, name + '.ini')
-        inis.append(fname)
+        ini_files.append(fname)
         with open(fname, 'w') as f:
             f.write('output_root=' + os.path.join(out_files_dir, name) + '\n'
                     + '\n'.join(pars[1:]) + '\nDEFAULT(' + base_ini + ')\n')
     printlog('Made test ini files.')
-    return inis
+    return ini_files
 
 
 def get_tolerance_vector(filename, cols):
@@ -460,7 +460,7 @@ def num_unequal(filename, cmpFcn):
     """
     orig_name = os.path.join(args.ini_dir, args.diff_to, filename)
     with open(orig_name) as f:
-        origMat = [[x for x in ln.split()] for ln in f]
+        origMat = [[_x for _x in ln.split()] for ln in f]
         # Check if the first row has one more column, which is the #
         if len(origMat[0]) == len(origMat[1]) + 1:
             origBase = 1
@@ -469,7 +469,7 @@ def num_unequal(filename, cmpFcn):
             origBase = 0
     new_name = os.path.join(args.ini_dir, args.out_files_dir, filename)
     with open(new_name) as f:
-        newMat = [[x for x in ln.split()] for ln in f]
+        newMat = [[_x for _x in ln.split()] for ln in f]
         if len(newMat[0]) == len(newMat[1]) + 1:
             newBase = 1
             newMat[0] = newMat[0][1:]
@@ -503,7 +503,7 @@ def num_unequal(filename, cmpFcn):
                     # The following split fails for *_transfer_out.* files where it not needed anyway.
                     inifile = IniFile()
                     inifile.readFile(inifilename)
-                except:
+                except OSError:
                     printlog("Could not open ini filename: %s" % inifilename)
             for o_row, n_row in zip(origMat[origBase:], newMat[newBase:]):
                 row += 1
@@ -555,7 +555,7 @@ def num_unequal(filename, cmpFcn):
                                                 printlog('value mismatch at %d, %d ("%s") of %s: %s != %s' % (
                                                     row, col + 1, cols[col], filename, o, n))
                                             return True
-                                    elif not isinstance(cand, Ignore):
+                                    elif not isinstance(cand, (bool, Ignore)):
                                         if not cand(oldrowdict, newrowdict):
                                             if args.verbose_diff_output:
                                                 printlog('value mismatch at %d, %d ("%s") of %s: %s != %s' % (
@@ -574,7 +574,7 @@ def num_unequal(filename, cmpFcn):
             #                printlog("Skipped file %s" % (filename))
             return False
     except ValueError as e:
-        printlog("ValueError: '%s' at %d, %d in file: %s" % (e.message, row, col + 1, filename))
+        printlog("ValueError: '%s' at %d, %d in file: %s" % (e, row, col + 1, filename))
         return True
 
 
@@ -606,13 +606,13 @@ def textualcmp(o, n, tolerance):
     :param tolerance: The allowed tolerance.
     :return: True, when |o - n| is greater then the tolerance allows, false else.
     """
-    os = customsplit(o)
-    ns = customsplit(n)
-    if len(os) > 1 and len(ns) > 1:
-        o_mantise = float(os[0])
-        o_exp = int(os[1])
-        n_mantise = float(ns[0])
-        n_exp = int(ns[1])
+    o_s = customsplit(o)
+    n_s = customsplit(n)
+    if len(o_s) > 1 and len(n_s) > 1:
+        o_mantise = float(o_s[0])
+        o_exp = int(o_s[1])
+        n_mantise = float(n_s[0])
+        n_exp = int(n_s[1])
         # Check without respect of the exponent, when that is greater zero.
         if 0 <= o_exp:
             if o_exp != n_exp:
@@ -624,7 +624,7 @@ def textualcmp(o, n, tolerance):
                 else:
                     n_mantise *= 10.0
             return math.fabs(float(o_mantise) - float(n_mantise)) >= tolerance
-        return math.fabs(float(os[0] + 'E' + os[1]) - float(ns[0] + 'E' + ns[1])) >= tolerance
+        return math.fabs(float(o_s[0] + 'E' + o_s[1]) - float(n_s[0] + 'E' + n_s[1])) >= tolerance
     # In all other cases do a numerical check
     return math.fabs(float(o) - float(n)) >= tolerance
 

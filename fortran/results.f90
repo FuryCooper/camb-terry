@@ -150,6 +150,14 @@
     procedure :: output_veccl_files => TCLdata_output_veccl_files
     end type TCLdata
 
+    Type TTimeSources
+        ! values of q to evolve the propagation equations to compute the sources
+        type(TRanges) :: Evolve_q
+        real(dl), dimension(:,:,:), allocatable :: LinearSrc !Sources and second derivs
+        !LinearSrc indices  ( k_index, source_index, time_step_index )
+        integer SourceNum, NonCustomSourceNum
+        !SourceNum is total number sources (2 or 3 for scalars, 3 for tensors).
+    end type TTimeSources
 
     type, extends(TCAMBdata) :: CAMBdata
 
@@ -186,10 +194,13 @@
 
         logical :: OnlyTransfer = .false. !C_L/PK not computed; initial power spectrum data, instead get Delta_q_l array
         !If true, sigma_8 is not calculated either]]
+        logical :: HasScalarTimeSources = .false. !No power spectra, only time transfer functions
 
         logical :: get_growth_sigma8 = .true.
         !gets sigma_vdelta, like sigma8 but using velocity-density cross power,
         !in late LCDM f*sigma8 = sigma_vdelta^2/sigma8
+
+        logical :: needs_good_pk_sampling = .false.
 
         logical ::call_again = .false.
         !if being called again with same parameters to get different thing
@@ -221,14 +232,21 @@
         Type(TRedWin), allocatable :: Redshift_W(:)
         real(dl), dimension(:), allocatable :: optical_depths_for21cm
 
+        Type(TTimeSources), allocatable :: ScalarTimeSources
+        integer :: Scalar_C_last = C_PhiE
+
+
     contains
     procedure :: DeltaTime => CAMBdata_DeltaTime
+    procedure :: DeltaTimeArr => CAMBdata_DeltaTimeArr
     procedure :: TimeOfz => CAMBdata_TimeOfz
     procedure :: TimeOfzArr => CAMBdata_TimeOfzArr
     procedure :: DeltaPhysicalTimeGyr => CAMBdata_DeltaPhysicalTimeGyr
+    procedure :: DeltaPhysicalTimeGyrArr => CAMBdata_DeltaPhysicalTimeGyrArr
     procedure :: AngularDiameterDistance => CAMBdata_AngularDiameterDistance
     procedure :: AngularDiameterDistanceArr => CAMBdata_AngularDiameterDistanceArr
     procedure :: AngularDiameterDistance2 => CAMBdata_AngularDiameterDistance2
+    procedure :: AngularDiameterDistance2Arr => CAMBdata_AngularDiameterDistance2Arr
     procedure :: LuminosityDistance => CAMBdata_LuminosityDistance
     procedure :: ComovingRadialDistance => CAMBdata_ComovingRadialDistance
     procedure :: ComovingRadialDistanceArr => CAMBdata_ComovingRadialDistanceArr
@@ -245,6 +263,7 @@
     procedure :: DarkEnergyStressEnergy => CAMBdata_DarkEnergyStressEnergy
     procedure :: SetParams => CAMBdata_SetParams
     procedure :: Free => CAMBdata_Free
+    procedure :: grho_no_de
     procedure :: GetReionizationOptDepth
     procedure :: rofChi
     procedure :: cosfunc
@@ -286,7 +305,7 @@
 
     end subroutine CAMBdata_SelfPointer
 
-    subroutine CAMBdata_SetParams(this, P, error, DoReion, call_again)
+    subroutine CAMBdata_SetParams(this, P, error, DoReion, call_again, background_only)
     !Initialize background variables; does not yet calculate thermal history
     use constants
     use PolyLog
@@ -295,13 +314,14 @@
     real(dl) fractional_number, conv
     integer, optional :: error !Zero if OK
     logical, optional :: DoReion
-    logical, optional :: call_again
+    logical, optional :: call_again, background_only
     logical WantReion, calling_again
     integer nu_i,actual_massless
     real(dl) nu_massless_degeneracy, neff_i, eta_k, h2
     real(dl) zpeak, sigma_z, zpeakstart, zpeakend
     real(dl) zeta3_corr(4), xi, xi_amp, omnuh2_min !terry
     Type(TRedWin), pointer :: Win
+    logical back_only
     !Constants in SI units
 
     global_error_flag = 0
@@ -319,6 +339,7 @@
 
     WantReion = DefaultTrue(DoReion)
     calling_again= DefaultFalse(call_again)
+    back_only = DefaultFalse(background_only)
 
     if (calling_again) then
         this%CP%WantDerivedParameters = .false.
@@ -335,7 +356,7 @@
         this%CP%Max_eta_k = max(this%CP%Max_eta_k,this%CP%Max_eta_k_tensor)
     end if
 
-    if (P%WantTransfer) then
+    if (P%WantTransfer .and. .not. back_only) then
         this%CP%WantScalars=.true.
         if (.not. P%WantCls) then
             this%CP%Accuracy%AccuratePolarization = .false.
@@ -523,24 +544,36 @@
             !  !print *, totrho_old/this%grhocrit*this%grhor*h2/this%CP%omnuh2, 'rhonu ratio1'
             !  !print *, totrho/this%grhocrit*this%grhor*h2/this%CP%omnuh2, 'rhonu ratio2'
             !end block
+            if (all(this%nu_masses(1:this%CP%Nu_mass_eigenstates)==0)) then
+                !All density accounted for by massless, so just use massless
+                this%CP%Omnuh2 = 0
+                goto 10
+            end if
+            !Just prevent divide by zero
+            this%nu_masses(1:this%CP%Nu_mass_eigenstates) = max(this%nu_masses(1:this%CP%Nu_mass_eigenstates),1e-3_dl)
         else
             this%nu_masses = 0
         end if
         !call init_massive_nu(CP%omegan_for_mass /=0, CP%xi_nu) !terry
         call this%CP%DarkEnergy%Init(this)
+        if (global_error_flag==0) this%tau0=this%TimeOfz(0._dl)
         if (global_error_flag==0) then
-            this%tau0=this%TimeOfz(0._dl)
             this%chi0=this%rofChi(this%tau0/this%curvature_radius)
             this%scale= this%chi0*this%curvature_radius/this%tau0  !e.g. change l sampling depending on approx peak spacing
             if (this%closed .and. this%tau0/this%curvature_radius >3.14) then
                 call GlobalError('chi >= pi in closed model not supported',error_unsupported_params)
             end if
             if (WantReion) call this%CP%Reion%Init(this)
-            if (this%CP%NonLinear/=NonLinear_None) call this%CP%NonLinearModel%Init(this)
+            if (this%CP%NonLinear/=NonLinear_None .and. .not. back_only) &
+                call this%CP%NonLinearModel%Init(this)
         end if
     end if
-    if (allocated(this%CP%SourceWindows)) then
-        this%num_redshiftwindows = size(this%CP%SourceWindows)
+    if (allocated(this%CP%SourceWindows) .and. .not. back_only) then
+        if (.not. this%CP%WantScalars) then
+            this%num_redshiftwindows=0
+        else
+            this%num_redshiftwindows = size(this%CP%SourceWindows)
+        end if
     else
         this%num_redshiftwindows = 0
         this%CP%SourceTerms%limber_windows = .false.
@@ -641,6 +674,21 @@
 
     end function CAMBdata_DeltaTime
 
+    subroutine CAMBdata_DeltaTimeArr(this, arr,  a1, a2, n, tol)
+    class(CAMBdata) :: this
+    integer, intent(in) :: n
+    real(dl), intent(out) :: arr(n)
+    real(dl), intent(in) :: a1(n), a2(n)
+    real(dl), intent(in), optional :: tol
+    integer i
+
+    !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC)
+    do i = 1, n
+        arr(i) = this%DeltaTime(a1(i), a2(i), tol)
+    end do
+
+    end subroutine CAMBdata_DeltaTimeArr
+
     function CAMBdata_TimeOfz(this, z, tol)
     class(CAMBdata) :: this
     real(dl) CAMBdata_TimeOfz
@@ -691,6 +739,22 @@
     CAMBdata_DeltaPhysicalTimeGyr = Integrate_Romberg(this, dtda,a1,a2,atol)*Mpc/c/Gyr
     end function CAMBdata_DeltaPhysicalTimeGyr
 
+    subroutine CAMBdata_DeltaPhysicalTimeGyrArr(this, arr,  a1, a2, n, tol)
+    class(CAMBdata) :: this
+    integer, intent(in) :: n
+    real(dl), intent(out) :: arr(n)
+    real(dl), intent(in) :: a1(n), a2(n)
+    real(dl), intent(in), optional :: tol
+    integer i
+
+    !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC)
+    do i = 1, n
+        arr(i) = this%DeltaPhysicalTimeGyr(a1(i), a2(i), tol)
+    end do
+
+    end subroutine CAMBdata_DeltaPhysicalTimeGyrArr
+
+
     function CAMBdata_AngularDiameterDistance(this,z)
     class(CAMBdata) :: this
     !This is the physical (non-comoving) angular diameter distance in Mpc
@@ -723,17 +787,37 @@
     end subroutine CAMBdata_AngularDiameterDistanceArr
 
 
-    function CAMBdata_AngularDiameterDistance2(this,z1, z2) ! z1 < z2
+    function CAMBdata_AngularDiameterDistance2(this,z1, z2)
+    ! z1 < z2, otherwise returns zero
     !From http://www.slac.stanford.edu/~amantz/work/fgas14/#cosmomc
     class(CAMBdata) :: this
     real(dl) CAMBdata_AngularDiameterDistance2
     real(dl), intent(in) :: z1, z2
 
-    CAMBdata_AngularDiameterDistance2 = this%curvature_radius/(1+z2)* &
-        this%rofchi(this%ComovingRadialDistance(z2)/this%curvature_radius &
-        - this%ComovingRadialDistance(z1)/this%curvature_radius)
+    if (z2 < z1 + 1e-4) then
+        CAMBdata_AngularDiameterDistance2=0
+    else
+        CAMBdata_AngularDiameterDistance2 = this%curvature_radius/(1+z2)* &
+            this%rofchi( this%DeltaTime(1/(1+z2),1/(1+z1))/this%curvature_radius)
+    end if
 
     end function CAMBdata_AngularDiameterDistance2
+
+    subroutine CAMBdata_AngularDiameterDistance2Arr(this, arr, z1, z2, n)
+    class(CAMBdata) :: this
+    real(dl), intent(out) :: arr(n)
+    real(dl), intent(in) :: z1(n), z2(n)
+    integer, intent(in) :: n
+    integer i
+
+    !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC)
+    do i = 1, n
+        arr(i) = this%AngularDiameterDistance2(z1(i),z2(i))
+    end do
+    !$OMP END PARALLEL DO
+
+    end subroutine CAMBdata_AngularDiameterDistance2Arr
+
 
     function CAMBdata_LuminosityDistance(this,z)
     class(CAMBdata) :: this
@@ -880,7 +964,8 @@
 
     call this%CP%Recomb%Init(this)
 
-    CAMBdata_get_zstar=this%binary_search(noreion_optdepth, 1.d0, 700.d0, 2000.d0, 1d-3)
+    CAMBdata_get_zstar=this%binary_search(noreion_optdepth, 1.d0, 700.d0, 2000.d0, &
+        1d-3,100.d0,5000.d0)
 
     end function CAMBdata_get_zstar
 
@@ -947,7 +1032,6 @@
     CAMBdata_get_lmax_lensed = this%CLdata%lmax_lensed
     end function CAMBdata_get_lmax_lensed
 
-
     !JD 08/13 New function for nonlinear lensing of CMB + MPK compatibility
     !Build master redshift array from array of desired Nonlinear lensing (NLL)
     !redshifts and an array of desired Power spectrum (PK) redshifts.
@@ -969,11 +1053,12 @@
     real(dl), intent(in), optional :: eta_k_max
 
     NLL_num_redshifts = 0
+    this%needs_good_pk_sampling = .false.
     associate(P => Params%Transfer)
         if ((Params%NonLinear==NonLinear_lens .or. Params%NonLinear==NonLinear_both) .and. &
             (Params%DoLensing .or. this%num_redshiftwindows > 0)) then
             ! Want non-linear lensing or other sources
-            P%k_per_logint  = 0
+            this%needs_good_pk_sampling = .false.
             NL_Boost = Params%Accuracy%AccuracyBoost*Params%Accuracy%NonlinSourceBoost
             if (Params%Do21cm) then
                 !Sources
@@ -1194,6 +1279,25 @@
 
     end function reion_doptdepth_dz
 
+    function grho_no_de(this, a) result(grhoa2)
+    !  Return 8*pi*G*rho_no_de*a**4 where rho_no_de includes everything except dark energy.
+    class(CAMBdata) :: this
+    real(dl), intent(in) :: a
+    real(dl) grhoa2, rhonu
+    integer nu_i
+
+    grhoa2 = this%grhok * a**2 + (this%grhoc + this%grhob) * a + this%grhog + this%grhornomass
+
+    if (this%CP%Num_Nu_massive /= 0) then
+        !Get massive neutrino density relative to massless
+        do nu_i = 1, this%CP%nu_mass_eigenstates
+            call ThermalNuBack%rho(a * this%nu_masses(nu_i), rhonu)
+            grhoa2 = grhoa2 + rhonu * this%grhormass(nu_i)
+        end do
+    end if
+
+    end function grho_no_de
+
     function GetReionizationOptDepth(this)
     class(CAMBdata) :: this
     real(dl) GetReionizationOptDepth
@@ -1206,23 +1310,34 @@
 
     end function GetReionizationOptDepth
 
-    real(dl) function binary_search(this,func, goal, x1, x2, tol)
+    real(dl) function binary_search(this,func, goal, x1, x2, tol, widex1, widex2)
     !This is about twice as inefficient as Brent
     class(CAMBdata) :: this
     procedure(state_function) :: func
     real(dl), intent(in) :: goal,x1,x2,tol
+    real(dl), intent(in), optional :: widex1, widex2 !Wider range in case of failure
     real(dl) try_t, try_b, avg, D_try, last_bot, last_top, diff
     integer count
+    logical wide
 
     try_b = x1
     try_t = x2
     diff = tol*2
     count = 0
+    wide = .false.
     do while (diff > tol)
         if (count>100) then
-            call GlobalError('binary_search (e.g for optical depth) did not converge',error_reionization)
-            binary_search = 0
-            return
+            if (.not. wide .and. present(widex1)) then
+                count=0
+                wide=.true.
+                try_b=widex1
+                try_t=widex2
+            else
+                call GlobalError(FormatString('binary_search (e.g for optical depth) did not converge: ' //&
+                    'Base range %f-%f.',x1,x2),error_reionization)
+                binary_search = 0
+                return
+            end if
         end if
         avg = (try_b+try_t)/2
         D_try = func(this,avg)
@@ -2072,14 +2187,16 @@
     call splder(this%ddotmu,this%dddotmu,nthermo,spline_data)
     call splder(this%dddotmu,this%ddddotmu,nthermo,spline_data)
     if (CP%want_zstar .or. CP%WantDerivedParameters) &
-        this%z_star = State%binary_search(noreion_optdepth, 1.d0, zstar_min, zstar_max, 1d-3/background_boost)
+        this%z_star = State%binary_search(noreion_optdepth, 1.d0, zstar_min, zstar_max, &
+        & 1d-3/background_boost, 100._dl, 4000._dl)
     !$OMP SECTION
     call splder(this%cs2,this%dcs2,nthermo,spline_data)
     call splder(this%emmu,this%demmu,nthermo,spline_data)
     call splder(this%adot,this%dadot,nthermo,spline_data)
     if (dowinlens) call splder(this%winlens,this%dwinlens,nthermo,spline_data)
-    if (CP%want_zdrag .or. CP%WantDerivedParameters) this%z_drag = &
-        State%binary_search(dragoptdepth, 1.d0, 700.d0, max(zstar_max*1.1_dl,1200._dl), 2d-3/background_boost)
+    if (CP%want_zdrag .or. CP%WantDerivedParameters) &
+        this%z_drag = State%binary_search(dragoptdepth, 1.d0, 800.d0, &
+        & max(zstar_max*1.1_dl,1200._dl), 2d-3/background_boost, 100.d0, 4000._dl)
     !$OMP SECTION
     this%ScaleFactor(:) = this%scaleFactor/taus !a/tau
     this%dScaleFactor(:) = (this%adot - this%ScaleFactor)*this%dlntau !derivative of a/tau
@@ -2136,19 +2253,18 @@
             ThermoDerivedParams( derived_thetaD ) =  100*const_pi/ThermoDerivedParams( derived_kD )/DA
 
             if (allocated(CP%z_outputs)) then
-                associate(BackgroundOutputs => State%BackgroundOutputs)
-                    if (allocated(BackgroundOutputs%H)) &
-                        deallocate(BackgroundOutputs%H, BackgroundOutputs%DA, BackgroundOutputs%rs_by_D_v)
-                    noutput = size(CP%z_outputs)
-                    allocate(BackgroundOutputs%H(noutput), BackgroundOutputs%DA(noutput), BackgroundOutputs%rs_by_D_v(noutput))
-                    !$OMP PARALLEL DO DEFAULT(shared)
-                    do i=1,noutput
-                        BackgroundOutputs%H(i) = State%HofZ(CP%z_outputs(i))
-                        BackgroundOutputs%DA(i) = State%AngularDiameterDistance(CP%z_outputs(i))
-                        BackgroundOutputs%rs_by_D_v(i) = rs/BAO_D_v_from_DA_H(CP%z_outputs(i), &
-                            BackgroundOutputs%DA(i),BackgroundOutputs%H(i))
-                    end do
-                end associate
+                if (allocated(State%BackgroundOutputs%H)) &
+                    deallocate(State%BackgroundOutputs%H, State%BackgroundOutputs%DA, State%BackgroundOutputs%rs_by_D_v)
+                noutput = size(CP%z_outputs)
+                allocate(State%BackgroundOutputs%H(noutput), State%BackgroundOutputs%DA(noutput), &
+                    State%BackgroundOutputs%rs_by_D_v(noutput))
+                !$OMP PARALLEL DO DEFAULT(shared)
+                do i=1,noutput
+                    State%BackgroundOutputs%H(i) = State%HofZ(CP%z_outputs(i))
+                    State%BackgroundOutputs%DA(i) = State%AngularDiameterDistance(CP%z_outputs(i))
+                    State%BackgroundOutputs%rs_by_D_v(i) = rs/BAO_D_v_from_DA_H(CP%z_outputs(i), &
+                        State%BackgroundOutputs%DA(i),State%BackgroundOutputs%H(i))
+                end do
             end if
 
             if (FeedbackLevel > 0) then
@@ -2296,7 +2412,8 @@
     !Sources
     if (.not. State%CP%Want_CMB .and. State%CP%WantCls) then
         if (State%num_redshiftwindows==0) then
-            call GlobalError('Want_CMB=false, but not redshift windows either', error_unsupported_params)
+            call GlobalError('Want_CMB=false and WantCls=true, but no redshift windows either', &
+                error_unsupported_params)
         else
             call TimeSteps%Add_delta(this%tau_start_redshiftwindows, State%tau0, dtau0)
         endif
@@ -2737,7 +2854,7 @@
         call CheckLoadedHighLTemplate
         if (CP%WantScalars) then
             if (allocated(this%Cl_scalar)) deallocate(this%Cl_scalar)
-            allocate(this%Cl_scalar(CP%Min_l:CP%Max_l, C_Temp:C_last), source=0._dl)
+            allocate(this%Cl_scalar(CP%Min_l:CP%Max_l, C_Temp:State%Scalar_C_last), source=0._dl)
             if (CP%want_cl_2D_array) then
                 if (allocated(this%Cl_scalar_array)) deallocate(this%Cl_scalar_array)
                 allocate(this%Cl_scalar_Array(CP%Min_l:CP%Max_l,  &
@@ -2808,7 +2925,7 @@
     fact = PresentDefault(1._dl, factor)
 
     if (CP%WantScalars .and. ScalFile /= '') then
-        last_C=min(C_PhiTemp,C_last)
+        last_C=min(C_PhiTemp,State%Scalar_C_last)
         unit = open_file_header(ScalFile, 'L', C_name_tags(:last_C))
         do il=lmin,min(10000,CP%Max_l)
             write(unit,trim(numcat('(1I6,',last_C))//'E15.6)')il ,fact*this%Cl_scalar(il,C_Temp:last_C)
@@ -3112,7 +3229,7 @@
     subroutine Transfer_GetMatterPowerData(State, MTrans, PK_data, itf_only, var1, var2)
     !Does *NOT* include non-linear corrections
     !Get total matter power spectrum in units of (h Mpc^{-1})^3 ready for interpolation.
-    !Here there definition is < Delta^2(x) > = 1/(2 pi)^3 int d^3k P_k(k)
+    !Here the definition is < Delta^2(x) > = 1/(2 pi)^3 int d^3k P_k(k)
     !We are assuming that Cls are generated so any baryonic wiggles are well sampled and that matter power
     !spectrum is generated to beyond the CMB k_max
     class(CAMBdata) :: State
@@ -3258,7 +3375,7 @@
 
     end subroutine MatterPowerdata_Free
 
-    function MatterPowerData_k(PK,  kh, itf) result(outpower)
+    function MatterPowerData_k(PK,  kh, itf, index_cache) result(outpower)
     !Get matter power spectrum at particular k/h by interpolation
     Type(MatterPowerData) :: PK
     integer, intent(in) :: itf
@@ -3267,6 +3384,7 @@
     integer llo,lhi
     real(dl) outpower, dp
     real(dl) ho,a0,b0
+    integer, optional :: index_cache
     integer, save :: i_last = 1
 
     logk = log(kh)
@@ -3281,14 +3399,18 @@
             ( PK%log_kh(PK%num_k)-PK%log_kh(PK%num_k-1) )
         outpower = PK%matpower(PK%num_k,itf) + dp*(logk - PK%log_kh(PK%num_k))
     else
-        llo=min(i_last,PK%num_k)
+        llo=min(PresentDefault(i_last, index_cache),PK%num_k)
         do while (PK%log_kh(llo) > logk)
             llo=llo-1
         end do
-        do while (PK%log_kh(llo+1)< logk)
+        do while (PK%log_kh(llo+1) < logk)
             llo=llo+1
         end do
-        i_last =llo
+        if (present(index_cache)) then
+            index_cache = llo
+        else
+            i_last =llo
+        end if
         lhi=llo+1
         ho=PK%log_kh(lhi)-PK%log_kh(llo)
         a0=(PK%log_kh(lhi)-logk)/ho
@@ -3497,8 +3619,8 @@
     real(dl), dimension(State%CP%Transfer%PK_num_redshifts) :: dsig8, dsig8o, sig8, sig8o
     integer :: s1, s2, ik
 
-    s1 = PresentDefault (transfer_power_var, var1)
-    s2 = PresentDefault (transfer_power_var, var2)
+    s1 = PresentDefault(transfer_power_var, var1)
+    s2 = PresentDefault(transfer_power_var, var2)
     H=State%CP%h0/100._dl
     lnko=0
     dsig8o=0
@@ -3516,7 +3638,11 @@
             dsig8 = dsig8*MTrans%TransferData(s2,ik, State%PK_redshifts_index(1:State%CP%Transfer%PK_num_redshifts))
         end if
         x= kh *R
-        win =3*(sin(x)-x*cos(x))/x**3
+        if (x < 1e-2_dl) then
+            win = 1._dl - x**2/10
+        else
+            win = 3*(sin(x)-x*cos(x))/x**3
+        end if
         lnk=log(k)
         if (ik==1) then
             dlnk=0.5_dl
@@ -3542,43 +3668,68 @@
     end subroutine Transfer_Get_SigmaR
 
     subroutine Transfer_GetSigmaRArray(State, MTrans, R, sigmaR, redshift_ix, var1, var2)
-    !Get array of SigmaR at (by default) redshift zero, for all values of R
-    class(CAMBdata) :: State
+    !Get array of SigmaR at (by default) redshift zero, for all values of R (in h^{-1}Mpc units)
+    class(CAMBdata), target :: State
     Type(MatterTransferData) :: MTrans
     real(dl), intent(in) :: R(:)
     real(dl), intent(out) :: SigmaR(:)
     integer, intent(in), optional :: redshift_ix, var1, var2
     integer red_ix, ik, subk
-    real(dl) kh, k, h, dkh
-    real(dl) lnk, dlnk, lnko, minR
+    real(dl) kh, k, h, dkh, k_step
+    real(dl) lnk, dlnk, lnko, minR, maxR
     real(dl), dimension(size(R)) ::  x, win, dsig8, dsig8o, sig8, sig8o
-    type(MatterPowerData) :: PKspline
-    integer, parameter :: nsub = 5
+    type(MatterPowerData), target:: PKspline
+    type(MatterPowerData), pointer :: PK
+    integer PK_ix
+    integer :: nsub
+    integer index_cache, nextra
 
-    minR = minval(R)
-    red_ix = PresentDefault (State%PK_redshifts_index(State%CP%Transfer%PK_num_redshifts), redshift_ix)
+    index_cache = 1
+    nsub = 5 !interpolation steps
+    h=State%CP%h0/100._dl
+    minR = minval(R)/ h
+    maxR = maxval(R)
+    red_ix = PresentDefault(State%PK_redshifts_index(State%CP%Transfer%PK_num_redshifts), redshift_ix)
 
-    call Transfer_GetMatterPowerData(State, MTrans, PKspline, red_ix, var1, var2 )
-
-    H=State%CP%h0/100._dl
+    if (allocated(State%CAMB_PK) .and. var1==transfer_power_var .and. var2==transfer_power_var) then
+        PK => State%CAMB_PK
+        PK_ix = red_ix
+    else
+        call Transfer_GetMatterPowerData(State, MTrans, PKspline, red_ix, var1, var2)
+        PK => PKspline
+        PK_ix = 1
+    end if
     dkh = 0._dl
     lnko=0
     dsig8o=0
     sig8=0
     sig8o=0
     if (MTrans%TransferData(Transfer_kh,1,1)==0) call MpiStop('Transfer_GetSigmaRArray kh zero')
-    do ik=1, MTrans%num_q_trans + 2
+
+    !Steps to extrapolate beyond kmax for tail [could do analytically]
+    nextra = (4 /minR - State%CP%Transfer%kmax)/h/ &
+        (MTrans%TransferData(Transfer_kh,MTrans%num_q_trans,1)- MTrans%TransferData(Transfer_kh,MTrans%num_q_trans-1,1))
+    do ik=1, MTrans%num_q_trans + max(2, nextra)
         if (ik < MTrans%num_q_trans) then
-            dkh = (MTrans%TransferData(Transfer_kh,ik+1,1)- MTrans%TransferData(Transfer_kh,ik,1))/nsub
-            !after last step just extrapolate a bit with previous size
+            k_step= MTrans%TransferData(Transfer_kh,ik+1,1)-MTrans%TransferData(Transfer_kh,ik,1)
+            kh = MTrans%TransferData(Transfer_kh,ik,1)
+            nsub = max(1, nint(k_step*min(maxR,4/(kh*h))/0.5))
+        else
+            !after last step just extrapolate with previous size
+            nsub = max(1, nint(k_step*min(maxR,4/(kh*h))))
         end if
-        if (ik <= MTrans%num_q_trans) kh = MTrans%TransferData(Transfer_kh,ik,1)
+        nsub = nint(nsub*State%CP%Accuracy%AccuracyBoost)
+        dkh = k_step/nsub
         do subk = 1, nsub
-            k = kh*H
+            k = kh*h
             lnk=log(k)
 
             x= kh *R
-            win =3*(sin(x)-x*cos(x))/x**3
+            where (x < 1e-2_dl)
+                win = 1._dl - x**2/5
+            elsewhere
+                win =(3*(sin(x)-x*cos(x))/x**3)**2
+            end where
             if (ik==1 .and. subk==1) then
                 dlnk=0.5_dl
                 !Approx for 2._dl/(Params%InitPower%an(in)+3)  [From int_0^k_1 dk/k k^4 P(k)]
@@ -3586,16 +3737,15 @@
             else
                 dlnk=lnk-lnko
             end if
-            dsig8=win**2*(MatterPowerData_k(PKspline,  kh, 1)*k**3)
+            dsig8=win*(MatterPowerData_k(PK, kh,PK_ix,index_cache)*k**3)
             sig8=sig8+(dsig8+dsig8o)*dlnk/2
             dsig8o=dsig8
             lnko=lnk
             kh = kh + dkh
         end do
     end do
-    call MatterPowerdata_Free(PKspline)
 
-    SigmaR=sqrt(sig8/(const_pi*const_twopi*h**3 ))
+    SigmaR=sqrt(sig8/(const_pi*const_twopi*h**3))
 
     end subroutine Transfer_GetSigmaRArray
 

@@ -1,20 +1,14 @@
 from .baseconfig import camblib, CAMBError, CAMBValueError, CAMBUnknownArgumentError, np
-from ctypes import c_float, c_int, c_double, c_bool, POINTER, byref
+from ctypes import c_double, c_bool, POINTER, byref
 import ctypes
 from . import model, constants
 from ._config import config
 from .model import CAMBparams
 from .results import CAMBdata, MatterTransferData, ClTransferData
-
 import logging
-import six
 import os
-
-if six.PY3:
-    from inspect import getfullargspec as getargspec
-else:
-    # noinspection PyDeprecation
-    from inspect import getargspec
+import numbers
+from inspect import getfullargspec
 
 _debug_params = False
 
@@ -36,22 +30,26 @@ def get_results(params):
     :return: :class:`~.results.CAMBdata` instance
     """
     res = CAMBdata()
-    if _debug_params: print(params)
+    if _debug_params:
+        print(params)
     res.calc_power_spectra(params)
     return res
 
 
-def get_transfer_functions(params):
+def get_transfer_functions(params, only_time_sources=False):
     """
-    Calculate transfer functions for specified parameters and return :class:`~.results.CAMBdata` instance for getting results
-    and subsequently calculating power spectra.
+    Calculate transfer functions for specified parameters and return :class:`~.results.CAMBdata` instance for
+    getting results and subsequently calculating power spectra.
 
     :param params: :class:`.model.CAMBparams` instance
+    :param only_time_sources: does not calculate the CMB l,k transfer functions and does not apply any non-linear
+                              correction scaling. Results with only_time_sources=True can therefore be used with
+                              different initial power spectra to get consistent non-linear lensed spectra.
     :return: :class:`~.results.CAMBdata` instance
     """
 
     res = CAMBdata()
-    res.calc_transfers(params)
+    res.calc_transfers(params, only_transfers=True, only_time_sources=only_time_sources)
     return res
 
 
@@ -61,7 +59,7 @@ def get_background(params, no_thermo=False):
     parameters and use background functions like :func:`~results.CAMBdata.angular_diameter_distance`.
 
     :param params: :class:`.model.CAMBparams` instance
-    :param no_thermo: set True if thermal history not required.
+    :param no_thermo: set True if thermal and ionization history not required.
     :return: :class:`~.results.CAMBdata` instance
     """
 
@@ -144,8 +142,8 @@ def set_params(cp=None, verbose=False, **params):
     used_params = set()
 
     def do_set(setter):
-        kwargs = {k: params[k] for k in getargspec(setter).args[1:] if k in params}
-        used_params.update(kwargs.keys())
+        kwargs = {kk: params[kk] for kk in getfullargspec(setter).args[1:] if kk in params}
+        used_params.update(kwargs)
         if kwargs:
             if verbose:
                 logging.warning('Calling %s(**%s)' % (setter.__name__, kwargs))
@@ -183,10 +181,44 @@ def set_params(cp=None, verbose=False, **params):
     return cp
 
 
+def get_valid_numerical_params(transfer_only=False, **class_names):
+    """
+    Get numerical parameter names that are valid input to :func:`set_params`
+
+    :param transfer_only: if True, exclude parameters that affect only initial power spectrum or non-linear model
+    :param class_names: class name parameters that will be used by :meth:`.model.CAMBparams.set_classes`
+    :return: set of valid input parameter names for :func:`set_params`
+    """
+    cp = CAMBparams()
+    cp.set_classes(**class_names)
+    params = set()
+
+    def extract_params(set_func):
+        pars = getfullargspec(set_func)
+        for arg in pars.args[1:len(pars.args) - len(pars.defaults or [])]:
+            params.add(arg)
+        if pars.defaults:
+            for arg, v in zip(pars.args[len(pars.args) - len(pars.defaults):], pars.defaults):
+                if (isinstance(v, numbers.Number) or v is None) and 'version' not in arg:
+                    params.add(arg)
+
+    extract_params(cp.DarkEnergy.set_params)
+    extract_params(cp.set_cosmology)
+    if not transfer_only:
+        extract_params(cp.InitPower.set_params)
+        extract_params(cp.NonLinearModel.set_params)
+    for f, tp in cp._fields_:
+        if not f.startswith('_') and tp == ctypes.c_double:
+            params.add(f)
+    return params - {'max_eta_k_tensor', 'max_eta_k', 'neutrino_hierarchy', 'standard_neutrino_neff',
+                     'pivot_scalar', 'pivot_tensor', 'num_massive_neutrinos', 'num_nu_massless', 'bbn_predictor'}
+
+
 def set_params_cosmomc(p, num_massive_neutrinos=1, neutrino_hierarchy='degenerate', halofit_version='mead',
                        dark_energy_model='ppf', lmax=2500, lens_potential_accuracy=1, inpars=None):
     """
     get CAMBParams for dictionary of cosmomc-named parameters assuming Planck 2018 defaults
+
     :param p: dictionary of cosmomc parameters (e.g. from getdist.types.BestFit's getParamDict() function)
     :param num_massive_neutrinos: usually 1 if fixed mnu=0.06 eV, three if mnu varying
     :param neutrino_hierarchy: hierarchy
@@ -215,7 +247,7 @@ def set_params_cosmomc(p, num_massive_neutrinos=1, neutrino_hierarchy='degenerat
 
 
 def validate_ini_file(filename):
-    # Checkin fortran .ini file parameters are valid; catch error stop in separate process
+    # Check if fortran .ini file parameters are valid; catch error stop in separate process
     import subprocess
     import sys
     try:
@@ -225,7 +257,8 @@ def validate_ini_file(filename):
         subprocess.check_output(command, stderr=subprocess.STDOUT, shell=True)
     except subprocess.CalledProcessError as E:
         err = E.output.decode().replace('ERROR STOP', '').strip()
-    if err: raise CAMBValueError(err + ' (%s)' % filename)
+    if err:
+        raise CAMBValueError(err + ' (%s)' % filename)
     return True
 
 
@@ -240,12 +273,13 @@ def run_ini(ini_filename, no_validate=False):
     """
     if not os.path.exists(ini_filename):
         raise CAMBValueError('File not found: %s' % ini_filename)
-    if not no_validate: validate_ini_file(ini_filename)
-    runIni = camblib.__camb_MOD_camb_runinifile
-    runIni.argtypes = [ctypes.c_char_p, POINTER(ctypes.c_long)]
-    runIni.restype = c_bool
-    s = ctypes.create_string_buffer(six.b(ini_filename))
-    if not runIni(s, ctypes.c_long(len(ini_filename))):
+    if not no_validate:
+        validate_ini_file(ini_filename)
+    run_inifile = camblib.__camb_MOD_camb_runinifile
+    run_inifile.argtypes = [ctypes.c_char_p, POINTER(ctypes.c_long)]
+    run_inifile.restype = c_bool
+    s = ctypes.create_string_buffer(ini_filename.encode("latin-1"))
+    if not run_inifile(s, ctypes.c_long(len(ini_filename))):
         config.check_global_error('run_ini')
 
 
@@ -259,13 +293,14 @@ def read_ini(ini_filename, no_validate=False):
     """
     if not os.path.exists(ini_filename):
         raise CAMBValueError('File not found: %s' % ini_filename)
-    if not no_validate: validate_ini_file(ini_filename)
+    if not no_validate:
+        validate_ini_file(ini_filename)
     cp = model.CAMBparams()
-    readIni = camblib.__camb_MOD_camb_readparamfile
-    readIni.argtypes = [POINTER(CAMBparams), ctypes.c_char_p, POINTER(ctypes.c_long)]
-    readIni.restype = ctypes.c_bool
-    s = ctypes.create_string_buffer(six.b(ini_filename))
-    if not readIni(cp, s, ctypes.c_long(len(ini_filename))):
+    read_inifile = camblib.__camb_MOD_camb_readparamfile
+    read_inifile.argtypes = [POINTER(CAMBparams), ctypes.c_char_p, POINTER(ctypes.c_long)]
+    read_inifile.restype = ctypes.c_bool
+    s = ctypes.create_string_buffer(ini_filename.encode("latin-1"))
+    if not read_inifile(cp, s, ctypes.c_long(len(ini_filename))):
         config.check_global_error('read_ini')
     return cp
 
@@ -283,7 +318,8 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
        print('Power spectrum at z=0.5, k/h=0.1/Mpc is %s (Mpc/h)^3 '%(PK.P(0.5, 0.1)))
 
     For a description of outputs for different var1, var2 see :ref:`transfer-variables`.
-    If you already have a :class:`~.results.CAMBdata` result object, you can instead use :meth:`~.results.CAMBdata.get_matter_power_interpolator`.
+    If you already have a :class:`~.results.CAMBdata` result object, you can instead
+    use :meth:`~.results.CAMBdata.get_matter_power_interpolator`.
 
     :param params: :class:`.model.CAMBparams` instance
     :param zmin: minimum z (use 0 or smaller than you want for good interpolation)
@@ -294,15 +330,16 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
     :param nonlinear: include non-linear correction from halo model
     :param var1: variable i (index, or name of variable; default delta_tot)
     :param var2: variable j (index, or name of variable; default delta_tot)
-    :param hubble_units: if true, output power spectrum in :math:`({\rm Mpc}/h)^{3}` units, otherwise :math:`{\rm Mpc}^{3}`
+    :param hubble_units: if true, output power spectrum in :math:`({\rm Mpc}/h)^{3}` units,
+                         otherwise :math:`{\rm Mpc}^{3}`
     :param k_hunit: if true, matter power is a function of k/h, if false, just k (both :math:`{\rm Mpc}^{-1}` units)
     :param return_z_k: if true, return interpolator, z, k where z, k are the grid used
     :param k_per_logint: specific uniform sampling over log k (if not set, uses optimized irregular sampling)
     :param log_interp: if true, interpolate log of power spectrum (unless any values are negative in which case ignored)
     :param extrap_kmax: if set, use power law extrapolation beyond kmax to extrap_kmax (useful for tails of integrals)
-    :return: An object PK based on :class:`~scipy:scipy.interpolate.RectBivariateSpline`, that can be called with PK.P(z,kh)
-           or PK(z,log(kh)) to get log matter power values.
-           If return_z_k=True, instead return interpolator, z, k where z, k are the grid used.
+    :return: An object PK based on :class:`~scipy:scipy.interpolate.RectBivariateSpline`, that can be called
+             with PK.P(z,kh) or PK(z,log(kh)) to get log matter power values.
+             If return_z_k=True, instead return interpolator, z, k where z, k are the grid used.
     """
 
     pars = params.copy()

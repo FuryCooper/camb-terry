@@ -1,19 +1,8 @@
-    ! Equations module for background and perturbations
-    ! To avoid circular module issues, some things are not part of module
-
-
-    subroutine Init_Backgrounds
-    !This is only called once per model, and is a good point to do any extra initialization.
-    !It is called before first call to dtauda, but after
-    !massive neutrinos are initialized
-
-    end  subroutine Init_Backgrounds
-
+    ! Equations module for background and ! To avoid circular module issues, some things are not part of module
 
     ! Background evolution, return d tau/ d a, where tau is the conformal time
     function dtauda(this,a)
     use results
-    use MassiveNu
     use DarkEnergyInterface
     use constants !terry
     implicit none
@@ -25,9 +14,9 @@
     real(dl) rhonu_m_a_massless(3) !terry
     integer int_nu_massless, nu_j !terry
 
-    a2 = a ** 2
     call this%CP%DarkEnergy%BackgroundDensityAndPressure(this%grhov, a, grhov_t)
 
+    a2 = a ** 2
     !  8*pi*G*rho*a**4.
     grhoa2 = this%grhok * a2 + (this%grhoc + this%grhob) * a + this%grhog + this%grhornomass + &
         grhov_t * a2
@@ -52,8 +41,6 @@
     dtauda = sqrt(3 / grhoa2)
 
     end function dtauda
-
-
 
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
@@ -898,6 +885,11 @@
             if (CP%Accuracy%AccuratePolarization) scal = 4  !But need more to get polarization right
             EV%lmaxgpol=max(3,nint(min(8,nint(scal* 150* EV%q))*CP%Accuracy%lAccuracyBoost))
             EV%lmaxnr=max(3,nint(min(7,nint(sqrt(scal)* 150 * EV%q))*CP%Accuracy%lAccuracyBoost))
+            if (EV%lmaxnr < EV%lmaxnu) then
+                ! Nov 2020 change following Pavel Motloch report
+                EV%lmaxnr = EV%lmaxnu
+                !EV%lmaxnu = min(EV%lmaxnu, EV%lmaxnr) ! may be better but have not tested and makes small result changes
+            endif
             EV%lmaxg=max(3,nint(min(8,nint(sqrt(scal) *300 * EV%q))*CP%Accuracy%lAccuracyBoost))
             !Sources
             if (CP%SourceTerms%line_phot_quadrupole) then
@@ -1960,9 +1952,12 @@
 
     ! DarkEnergy: This initializes also i_vq, when num_perturb_equations is set
     !             to 2.
-    if (CP%DarkEnergy%num_perturb_equations > 0) &
+    if (CP%DarkEnergy%num_perturb_equations > 0) then
+        call CP%DarkEnergy%PerturbationInitial(InitVec(i_clxde:i_clxde + CP%DarkEnergy%num_perturb_equations - 1), &
+            a, tau,  k)
         y(EV%w_ix:EV%w_ix + CP%DarkEnergy%num_perturb_equations - 1) = &
-        InitVec(i_clxde:i_clxde + CP%DarkEnergy%num_perturb_equations - 1)
+            InitVec(i_clxde:i_clxde + CP%DarkEnergy%num_perturb_equations - 1)
+    end if
 
     if (CP%Evolve_delta_Ts) then
         y(EV%Ts_ix) = y(EV%g_ix)/4
@@ -2233,7 +2228,6 @@
         call State%CP%DarkEnergy%BackgroundDensityAndPressure(State%grhov, a, grhov_t, w_dark_energy_t)
     end if
 
-
     !total perturbations: matter terms first, then add massive nu, de and radiation
     !  8*pi*a*a*SUM[rho_i*clx_i]
     dgrho_matter=grhob_t*clxb+grhoc_t*clxc
@@ -2306,7 +2300,7 @@
 
     if (.not. EV%is_cosmological_constant) then
         call State%CP%DarkEnergy%PerturbedStressEnergy(dgrho_de, dgq_de, &
-            dgq, dgrho, grho, grhov_t, w_dark_energy_t, gpres_noDE, etak, &
+            a, dgq, dgrho, grho, grhov_t, w_dark_energy_t, gpres_noDE, etak, &
             adotoa, k, EV%Kf(1), ay, ayprime, EV%w_ix)
         dgrho = dgrho + dgrho_de
         dgq = dgq + dgq_de
@@ -2810,7 +2804,7 @@
                 select type(DE=>State%CP%DarkEnergy)
                 class is (TDarkEnergyEqnOfState)
                     cs2_de = DE%cs2_lam
-                    class default
+                class default
                     cs2_de=1
                 end select
                 block

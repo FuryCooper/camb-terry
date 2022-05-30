@@ -9,6 +9,7 @@
 .pydevproject
 x64/
 Debug/
+Debuglib/
 Release/
 Releaselib/
 WinDLL/
@@ -30,6 +31,8 @@ build
 testfiles
 inspectionProfiles
 fortran/camb
+fortran/DebugMPI
+fortran/ReleaseMPI/
 Advisor/
 Inspector/
 .ipynb_checkpoints
